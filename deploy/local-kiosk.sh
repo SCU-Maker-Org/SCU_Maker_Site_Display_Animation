@@ -59,12 +59,43 @@ EOF
   fi
 }
 
+# 判断某个命令是否真的可用（snap 包装脚本在 snapd 不可用时也存在，但执行会失败）
+usable() {
+  local b="$1"
+  command -v "$b" >/dev/null 2>&1 || return 1
+  # snap 版：确认 snapd 正常
+  case "$(readlink -f "$(command -v "$b")")" in
+    /snap/*|*/snapd/*)
+      systemctl is-active --quiet snapd 2>/dev/null || return 1
+      ;;
+  esac
+  # firefox 还需能 --version 成功返回
+  "$b" --version >/dev/null 2>&1 || return 1
+  return 0
+}
+
 detect_browser() {
   if [ -n "${KIOSK_BROWSER:-}" ]; then echo "$KIOSK_BROWSER"; return; fi
-  for b in chromium chromium-browser firefox; do
-    if command -v "$b" >/dev/null 2>&1; then echo "$b"; return; fi
+  for b in chromium chromium-browser firefox firefox-esr epiphany epiphany-browser; do
+    if usable "$b"; then echo "$b"; return; fi
   done
   echo ""
+}
+
+# 没有可用浏览器时给出可执行的建议
+browser_hint() {
+  echo "  不要再装 snap 版（snapd 在这台机器上被禁用了）。可选："
+  echo
+  echo "  A) 用系统自带 Firefox（如果版面上已有图形版 firefox，直接设）:"
+  echo "     which firefox && firefox --version"
+  echo "     sudo sed -i 's/^BROWSER=.*/BROWSER=firefox/' /etc/maker-kiosk.conf"
+  echo
+  echo "  B) 安装 Chromium 的 deb 版（推荐，配合 maker 站点最稳）:"
+  echo "     sudo apt update"
+  echo "     sudo apt install -y chromium-browser || sudo apt install -y chromium"
+  echo
+  echo "  C) 先用 deb 版 Firefox（snap 失效时 apt 的 firefox-esr 仍可装）:"
+  echo "     sudo apt install -y firefox-esr"
 }
 
 # ---------------------------------------------------------------- 桌面自启 ----
@@ -150,8 +181,8 @@ install_all() {
 
   local b; b="$(detect_browser)"
   if [ -z "$b" ]; then
-    echo "警告：没有找到 chromium / firefox，请先安装："
-    echo "      sudo apt install -y chromium-browser   # 或 sudo snap install firefox"
+    echo "警告：没有找到可用的浏览器。"
+    browser_hint
   else
     echo "使用浏览器：$b"
   fi

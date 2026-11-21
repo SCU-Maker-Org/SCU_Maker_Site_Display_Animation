@@ -27,16 +27,29 @@ else
 fi
 [ "$LOWFX" = "1" ] && URL="$URL?lowfx=1"
 
+# snap 版浏览器：snapd 被禁用时包装脚本虽在，执行必然失败，需要过滤掉
+usable() {
+  local b="$1"
+  command -v "$b" >/dev/null 2>&1 || return 1
+  case "$(readlink -f "$(command -v "$b")")" in
+    /snap/*|*/snapd/*)
+      systemctl is-active --quiet snapd 2>/dev/null || return 1
+      ;;
+  esac
+  "$b" --version >/dev/null 2>&1 || return 1
+  return 0
+}
+
 pick_browser() {
   local want="$1" b
-  if [ -n "$want" ] && command -v "$want" >/dev/null 2>&1; then echo "$want"; return; fi
-  for b in chromium chromium-browser firefox; do
-    if command -v "$b" >/dev/null 2>&1; then echo "$b"; return; fi
+  if [ -n "$want" ] && usable "$want"; then echo "$want"; return; fi
+  for b in chromium chromium-browser firefox firefox-esr epiphany epiphany-browser; do
+    if usable "$b"; then echo "$b"; return; fi
   done
   echo ""
 }
 BIN="$(pick_browser "$BROWSER")"
-[ -n "$BIN" ] || { echo "没有找到浏览器（chromium / firefox）"; exit 1; }
+[ -n "$BIN" ] || { echo "没有可用的浏览器（chromium / chromium-browser / firefox）。snap 版不可用请改装 deb 版。"; exit 1; }
 
 if [ "${DELAY%%.*}" -gt 0 ] 2>/dev/null; then sleep "$DELAY"; fi
 
@@ -98,6 +111,10 @@ EOF
     # MOZ_NO_REMOTE：不尝试连已有实例（避免 remote 探测导致卡住/弹窗）
     export MOZ_NO_REMOTE=1
     exec firefox --kiosk --no-remote --profile "$PROFILE" "$URL"
+    ;;
+  epiphany*)
+    # GNOME Web：没有 --kiosk，用全屏 API（页面脚本可请求）+ 单独 profile
+    exec "$BIN" --profile="${KIOSK_PROFILE:-$HOME/.config/maker-epiphany}" "$URL"
     ;;
   *)
     exec "$BIN" \

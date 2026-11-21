@@ -58,7 +58,7 @@ js/app.js                   播放控制：横移、循环、进度、快捷键
 assets/动画_web.mp4         网页主用视频（720p / 30fps / Main@4.0 / 无音轨，约 5.1MB）
 assets/动画_web_540.mp4     兜底视频（540p / 30fps / Main@3.1，约 3.0MB）
 assets/动画_poster.jpg       视频封面（Firefox 等加载慢时先显示它）
-deploy/                     香橙派部署脚本（定时拉取 / nginx 或 本地 file:// 全屏 / 定时开关机，见 deploy/README.md）
+deploy/                     树莓派 4B + Ubuntu 24.04 一键部署（nginx / 开机全屏 / 定时开关机，见 deploy/README.md）
 assets/、tools/             （上一版分层猫动画的素材，当前未使用，可删）
 敲钉子的猫.png / 哈气的猫.png  原始插画（素材备份）
 SCU Maker's Logo.png        协会 Logo（透明底 PNG）
@@ -220,7 +220,7 @@ A：把 `showIntroOnce` 设为 `true`。
 
 ## 六、Firefox 卡顿 / 闪退的修复（已内置）
 
-原先用 18MB、10 Mbps 的原始视频，Firefox（尤其是香橙派这类 ARM 板）会疯狂占用内存直至闪退。
+原先用 18MB、10 Mbps 的原始视频，Firefox（尤其是树莓派这类 ARM 板）会疯狂占用内存直至闪退。
 现在做了四层处理：
 
 1. **换成网页专用视频** `assets/动画_web.mp4`：H.264 **Main** profile、1280×720、**无音轨**、**每 0.5 秒一个关键帧**、`+faststart`，体积 18MB → **4.3MB**。
@@ -240,13 +240,13 @@ A：把 `showIntroOnce` 设为 `true`。
 手动控制低配模式：
 
 ```
-http://<IP>/?lowfx=1     强制开启低配（推荐给 Firefox / 香橙派）
+http://<IP>/?lowfx=1     强制开启低配（推荐给 Firefox / 树莓派）
 http://<IP>/?lowfx=0     强制关闭
 ```
 
 如需全局默认开启，在 `js/config.js` 的 `settings` 里加一行 `lowfx: true`。
 
-> 展台机箱建议：**香橙派上优先用 Chromium kiosk**（见第五节的 `maker-kiosk.service`），
+> 展台机箱建议：**树莓派上优先用 Chromium kiosk**（见 deploy/README.md 第五节），
 > 性能与视频兼容性都比 Firefox 稳；如果必须用 Firefox，请配合 `?lowfx=1` 与更新的 Firefox ESR。
 
 ---
@@ -310,7 +310,7 @@ sudo apt install -y ffmpeg
 ffmpeg -v error -i /srv/maker/current/assets/动画_web.mp4 -f null -    # 应无报错
 
 # 2) 走软解兜底（放弃硬解，吃 CPU 但能出画面）
-#    编辑 deploy/maker-kiosk-run.sh，把 --enable-features=VaapiVideoDecoder 换成：
+#    编辑 /opt/maker/maker-kiosk-run.sh，去掉 --use-gl=egl，或改用 firefox
 #    --disable-accelerated-video-decode --use-gl=egl
 
 # 3) 检查 /dev/video* 与 VAAPI 支持
