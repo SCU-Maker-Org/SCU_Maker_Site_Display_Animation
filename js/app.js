@@ -314,19 +314,12 @@
   tickClock();
   setInterval(tickClock, 10000);
 
-  // 离开开场页后彻底释放视频（Firefox 上视频解码器不释放会越来越卡直到闪退）
+  // 离开开场页时释放视频解码器（只暂停，不销毁源：
+  //  保存整段视频的缓冲/HTTP 缓存，下一轮循环播放不用重新下载）
   function releaseIdleVideo() {
     var v = document.querySelector('.intro-video');
     if (!v) return;
     try { v.pause(); } catch (e) { }
-    try {
-      // 注意：file:// 下移除源后再 load() 会抛 "Invalid URI"（控制台红字），整段包住
-      try {
-        v.removeAttribute('src');
-        while (v.firstChild) v.removeChild(v.firstChild);   // 也移除 <source>
-        v.load();
-      } catch (e) { /* 忽略 */ }
-    } catch (e) { }
   }
 
   // 切到后台时暂停

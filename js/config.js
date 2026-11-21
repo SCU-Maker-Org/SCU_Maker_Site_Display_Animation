@@ -36,6 +36,10 @@ window.CONFIG = {
    * ---------------------------------------------------------------------- */
   intro: {
     duration: 40700,              // 开场：动画约 9.7s + Logo 停留 10s，然后翻页
+    // 开场视频：主用 720p30（Pi 友好），不支持时浏览器自动回退到 540p30
+    video: 'assets/动画_web.mp4',
+    videoFallback: 'assets/动画_web_540.mp4',
+    poster: 'assets/动画_poster.jpg',
     mainTitle: 'SCU Maker',
     subTitle: '四川大学计算机学院（软件学院）开源硬件协会',
     kicker: 'Sichuan University · College of Computer Science',
@@ -124,12 +128,12 @@ window.CONFIG = {
       zh: {
         tag: '互助',
         category: '电脑维修',
-        title: '四川大学软件学院“飞扬”协会长期免费维修电脑公益活动',
-        speaker: '四川大学软件学院“飞扬”协会',
+        title: '四川大学“飞扬”俱乐部长期免费维修电脑公益活动',
+        speaker: '四川大学“飞扬”俱乐部',
         speakerTitle: '',
         time: '',
         place: '四川大学江安校区“i创街”智能科学创新与开源硬件工坊',
-        description: '四川大学软件学院“飞扬”协会长期开展免费维修电脑公益活动，面向全校师生提供电脑故障排查、系统维护与硬件检修等互助服务。',
+        description: '四川大学“飞扬”俱乐部长期开展免费维修电脑公益活动，面向全校师生提供电脑故障排查、系统维护与硬件检修等互助服务。',
         highlights: ['免费维修', '长期开展'],
         entry: '欢迎直接进门咨询',
         qrText: '欢迎直接进门咨询'
@@ -138,12 +142,12 @@ window.CONFIG = {
       en: {
         tag: 'Mutual Help',
         category: 'PC Repair',
-        title: 'Ongoing Free Computer Repair Charity Service by "Feiyang" Association, School of Software, Sichuan University',
-        speaker: '"Feiyang" Association, School of Software, Sichuan University',
+        title: 'Ongoing Free Computer Repair Charity Service by "Feiyang" Club, Sichuan University',
+        speaker: '"Feiyang" Club, Sichuan University',
         speakerTitle: '',
         time: '',
         place: '"i-Chuang Street" Intelligent Science Innovation & Open-Source Hardware Offense-Defense Workshop, Jiang\'an Campus, Sichuan University',
-        description: 'The "Feiyang" Association of the School of Software, Sichuan University runs an ongoing free computer repair charity service, offering troubleshooting, system maintenance, and hardware repair to students and faculty.',
+        description: 'The "Feiyang" Club, Sichuan University runs an ongoing free computer repair charity service, offering troubleshooting, system maintenance, and hardware repair to students and faculty.',
         highlights: ['Free repair', 'Ongoing service'],
         entry: 'Walk in and ask — no appointment needed',
         qrText: 'Walk in and ask — no appointment needed'

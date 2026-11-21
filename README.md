@@ -55,7 +55,8 @@ js/intro.js                 第一页：Logo 快切 + 播放 动画.mp4 + Logo �
 js/poster.js                海报页生成器（中 / 英双语）
 js/app.js                   播放控制：横移、循环、进度、快捷键
 动画.mp4                    原始动画视频（1280×720，源码保留）
-assets/动画_web.mp4         网页用视频（H.264 Main / 每 0.5 秒关键帧 / 无音轨，约 4.3MB）
+assets/动画_web.mp4         网页主用视频（720p / 30fps / Main@4.0 / 无音轨，约 5.1MB）
+assets/动画_web_540.mp4     兜底视频（540p / 30fps / Main@3.1，约 3.0MB）
 assets/动画_poster.jpg       视频封面（Firefox 等加载慢时先显示它）
 deploy/                     香橙派部署脚本（定时拉取 / nginx 或 本地 file:// 全屏 / 定时开关机，见 deploy/README.md）
 assets/、tools/             （上一版分层猫动画的素材，当前未使用，可删）
@@ -226,8 +227,8 @@ A：把 `showIntroOnce` 设为 `true`。
    重新生成命令（需要 ffmpeg）：
 
    ```bash
-   ffmpeg -i 动画.mp4 -an -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p \
-          -crf 24 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
+   ffmpeg -i 动画.mp4 -an -vf "fps=30,scale=1280:720" -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p \
+          -crf 23 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
           -movflags +faststart -preset slow -tune animation assets/动画_web.mp4
    ffmpeg -i assets/动画_web.mp4 -frames:v 1 -vf scale=640:-1 assets/动画_poster.jpg -q:v 4
    ```
@@ -247,3 +248,72 @@ http://<IP>/?lowfx=0     强制关闭
 
 > 展台机箱建议：**香橙派上优先用 Chromium kiosk**（见第五节的 `maker-kiosk.service`），
 > 性能与视频兼容性都比 Firefox 稳；如果必须用 Firefox，请配合 `?lowfx=1` 与更新的 Firefox ESR。
+
+---
+
+## 七、视频如何「始终留在内存」
+
+板子上内存/CPU 都不高，但视频加载失败，通常是**视频格式超出了板子的硬解能力**，而不是内存不够。现在做了三件事：
+
+### 7.1 视频一次下载、全程复用
+
+- `<video preload="auto" autoplay>` + 进入页面时 `primeVideo()` 预播 0.6 秒，
+  让浏览器立刻把**整段视频**（约 5MB）缓存进内存（实测 `buffered` 范围 = `0–15s` 全覆盖）。
+- 离开开场页只 `pause()`，**不销毁视频源**，所以循环到第二圈不会再发起网络请求（实测 mp4 只请求 1 次）。
+- `assets/` 里保留两个版本：
+
+| 文件 | 参数 | 大小 | 用途 |
+| --- | --- | --- | --- |
+| `assets/动画_web.mp4` | 1280×720 / **30fps** / H.264 **Main@4.0** / 无音轨 | 5.1 MB | 主用（树莓派 V4L2 硬解可解） |
+| `assets/动画_web_540.mp4` | 960×540 / 30fps / Main@3.1 | 3.0 MB | 兜底（主视频解不出来时自动回退） |
+
+> 之前失败的关键是 **60fps** 码流：树莓派 4B 的 V4L2 硬解对帧率很敏感，
+> 换成 30fps、每 0.5 秒一个关键帧、无音轨后基本都能硬解；仍不行就回退到 540p 版。
+
+### 7.2 浏览器自动回退
+
+`js/config.js`：
+
+```js
+video: 'assets/动画_web.mp4',          // 主用
+videoFallback: 'assets/动画_web_540.mp4', // 主用解不出来时自动换这个
+```
+
+浏览器拿到第一个 `<source>` 解不出来时会自动尝试第二个（DOM 里已经能看到两个 `<source>`）。
+
+### 7.3 重新压缩视频的命令
+
+换新视频时按这两档压：
+
+```bash
+# 720p30（主用）
+ffmpeg -i 动画.mp4 -an -vf "fps=30,scale=1280:720" -c:v libx264 -profile:v main -level 4.0 \
+  -pix_fmt yuv420p -crf 23 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
+  -movflags +faststart -preset slow -tune animation assets/动画_web.mp4
+
+# 540p30（兜底）
+ffmpeg -i 动画.mp4 -an -vf "fps=30,scale=960:540" -c:v libx264 -profile:v main -level 3.1 \
+  -pix_fmt yuv420p -crf 23 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
+  -movflags +faststart -preset slow -tune animation assets/动画_web_540.mp4
+
+# 封面（取第一帧）
+ffmpeg -i assets/动画_web.mp4 -frames:v 1 -vf "scale=640:-1" assets/动画_poster.jpg -q:v 4
+```
+
+### 7.4 如果树莓派仍然放不出来
+
+在板子上照着 README 第十节排查：
+
+```bash
+# 1) 用系统播放器验证能否硬解（能播 = 浏览器参数问题；不能播 = 码流问题）
+sudo apt install -y ffmpeg
+ffmpeg -v error -i /srv/maker/current/assets/动画_web.mp4 -f null -    # 应无报错
+
+# 2) 走软解兜底（放弃硬解，吃 CPU 但能出画面）
+#    编辑 deploy/maker-kiosk-run.sh，把 --enable-features=VaapiVideoDecoder 换成：
+#    --disable-accelerated-video-decode --use-gl=egl
+
+# 3) 检查 /dev/video* 与 VAAPI 支持
+ls /dev/video*
+vainfo 2>/dev/null || echo "没有 vainfo（可 apt install vainfo）"
+```

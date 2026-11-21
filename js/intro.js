@@ -60,8 +60,9 @@
         '<div class="bg-paper"></div>' +
         '<div class="paper-grid"></div>' +
         '<div class="paper-noise"></div>' +
-        '<video class="intro-video" muted playsinline preload="none" poster="' + esc(I.poster || 'assets/动画_poster.jpg') + '">' +
+        '<video class="intro-video" muted playsinline webkit-playsinline preload="auto" autoplay poster="' + esc(I.poster || 'assets/动画_poster.jpg') + '">' +
           '<source src="' + esc(I.video || 'assets/动画_web.mp4') + '" type="video/mp4">' +
+          (I.videoFallback ? '<source src="' + esc(I.videoFallback) + '" type="video/mp4">' : '') +
         '</video>' +
         '<div class="artboard">' +
           '<div class="intro-halo"></div>' +
@@ -194,20 +195,27 @@
       return '';
     }
 
-    /* ---- 视频控制（Firefox 降级：元数据到了才显示视频，否则显示静态封面） ---- */
+    /* ---- 视频控制 ----
+     * 策略：进入第一页就把整段视频全部缓存进内存（preload=auto + 自动播放一遍），
+     *      循环播放时不再重新请求网络；板子上即使网络慢，也只是第一次多等一会儿。
+     * 降级：元数据到了才显示视频，否则显示静态封面；视频停住超过 1.2s 自动放弃。 */
     var videoMeta = false;
-    var videoStarted = false;
+    function primeVideo() {
+      // 让浏览器立刻开始下载并解码首帧
+      try { video.preload = 'auto'; } catch (e) { }
+      var p = video.play();
+      if (p && p.catch) p.catch(function () { });
+      // 预播几百毫秒后停下，不影响时间轴
+      setTimeout(function () {
+        if (!videoOn) { try { video.pause(); video.currentTime = 0; } catch (e) { } }
+      }, 600);
+    }
     function playVideo(now) {
       if (videoOn) return;
       videoOn = true;
       try {
-        // 只在第一次进入时 set currentTime（每次都设会让 Firefox 反复 seek，极卡）
-        if (!videoStarted) {
-          videoStarted = true;
-          video.preload = 'auto';
-          video.load();
-          video.currentTime = Math.max(0, (now - T.videoStart) / 1000);
-        }
+        // 整段视频已在内存里，直接对齐时间轴（seek 只需解码，无需重新下载）
+        video.currentTime = Math.max(0, (now - T.videoStart) / 1000);
         var p = video.play();
         if (p && p.catch) p.catch(function () { });
       } catch (e) { /* 自动播放被拦截时静默 */ }
@@ -218,7 +226,7 @@
       el.classList.remove('video-on');
       try { video.pause(); } catch (e) { }
     }
-    // 视频可播放（有尺寸）才显示，避免 Firefox 播不出来时整块黑屏 / 卡死
+    // 视频可播放（有尺寸）才显示，避免播不出来时整块黑屏
     function canShowVideo() {
       return videoMeta && video.videoWidth > 0 && video.readyState >= 2;
     }
@@ -306,7 +314,6 @@
         cutDone = false;
         curCut = -1;
         videoOn = false;
-        videoStarted = false;
         videoFrozen = false;
         videoWatch = null;
         lastTw = '';
@@ -315,6 +322,7 @@
         blackoutEl.style.opacity = '0';
         el.classList.remove('after', 'cut-done', 'video-on');
         try { video.pause(); video.currentTime = 0; } catch (e) { }
+        try { video.preload = 'auto'; } catch (e) { }
         document.body.classList.add('montage', 'intro-mode');
         document.body.dataset.theme = 'light';
         running = true;
@@ -355,6 +363,9 @@
     };
 
     if (hook.onDuration) hook.onDuration(duration);
+
+    // 首次进入即全量缓存视频（4~5MB），后续循环不再走网络
+    primeVideo();
 
     draw(0);
     return api;

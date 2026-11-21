@@ -41,6 +41,7 @@ REQUIRED_FILES=(
   "js/app.js"
   "动画.mp4"
   "assets/动画_web.mp4"
+  "assets/动画_web_540.mp4"
   "assets/动画_poster.jpg"
 )
 
@@ -96,7 +97,7 @@ publish() {
 
   mkdir -p "$rel"
   # 排除 .git / 开发用素材：只发布网站真正需要的文件
-  # 注意：assets/ 里有开场视频的 Web 版（assets/动画_web.mp4）与封面图，必须同步
+  # 注意：assets/ 里有两个 Web 视频（720p 主用 + 540p 兜底）与封面图，必须同步
   rsync -a --delete \
     --exclude '.git/' \
     --exclude 'tools/' \
