@@ -780,3 +780,112 @@ A：nginx 与 sync 在系统启动阶段就跑；kiosk 依赖图形桌面，脚�
 **Q：断电重启后页面还是旧的？**
 A：`maker-sync.timer` 开机 1 分钟后才第一次检查；急的话 `sudo /opt/maker/sync.sh`。
 kiosk 浏览器打开的是本地 `current`，更新后需要 `sudo systemctl restart maker-kiosk` 才会刷新画面。
+
+---
+
+## 十四、开机立刻全屏打开页面（推荐配置）
+
+目标：**按下电源 → 自动登录桌面 → 桌面一出现就全屏打开展示页**，中间不需要任何点击。
+
+### 一条命令完成
+
+```bash
+# 在仓库目录执行
+cd ~/Desktop/SCU_Maker_Site_Display_Animation
+git pull
+sudo install -m 755 deploy/local-kiosk.sh /opt/maker/local-kiosk.sh
+sudo install -m 755 deploy/maker-kiosk-run.sh /opt/maker/maker-kiosk-run.sh
+sudo /opt/maker/local-kiosk.sh install
+```
+
+它会依次完成：
+
+1. 写入 `/etc/maker-kiosk.conf`（浏览器、`?lowfx=1`、`file://` 或 `http://`）；
+2. 创建**桌面自启项** `~/.config/autostart/maker-kiosk.desktop`
+   —— 桌面会话一就绪就启动，比 systemd 快几秒，也不会遇到权限/DISPLAY 问题；
+3. **自动开启 GDM 自动登录**（`/etc/gdm3/custom.conf` 写入 `AutomaticLoginEnable=true` + 用户名，改前自动备份）；
+4. 立刻启动一次，不用等重启。
+
+安装后检查：
+
+```bash
+sudo /opt/maker/local-kiosk.sh status
+```
+
+输出里应能看到：
+
+```
+== 自启方式 ==
+  桌面自启：/home/xxx/.config/autostart/maker-kiosk.desktop
+== 浏览器进程 ==
+  1234  chromium --kiosk --incognito ... file:///srv/maker/current/index.html?lowfx=1
+== 自动登录 ==
+AutomaticLoginEnable=true
+AutomaticLogin=xxx
+```
+
+### 为什么用“桌面自启”而不是 systemd
+
+Ubuntu 22 的桌面（GDM + GNOME/Wayland）在 systemd 的 `graphical.target` 之后还要几秒才真正可用，
+此时 `DISPLAY=:0` 还不存在，systemd 直接拉浏览器会失败或黑屏。
+桌面自启（`~/.config/autostart/*.desktop`）是**桌面会话自己**启动的程序，时机最准。
+
+如果你更想用 systemd：
+
+```bash
+sudo /opt/maker/local-kiosk.sh install --systemd
+```
+
+（它会创建 `maker-kiosk.service`，`WantedBy=graphical.target`，失败自动重启。）
+
+### 两种页面地址
+
+`/etc/maker-kiosk.conf`：
+
+```bash
+VIEW=file    # file:///srv/maker/current/index.html?lowfx=1   ← 默认，不依赖 nginx
+VIEW=http    # http://127.0.0.1/?lowfx=1                       ← 配合 nginx
+BROWSER=chromium        # chromium / chromium-browser / firefox（写错也会自动兜底）
+LOWFX=1                 # 1 = 加 ?lowfx=1，树莓派 4B 上明显更流畅
+KIOSK_DELAY=0           # 桌面就绪后额外等待秒数
+```
+
+改完执行 `sudo /opt/maker/local-kiosk.sh stop && sudo /opt/maker/local-kiosk.sh start` 生效。
+
+### 常用命令
+
+```bash
+sudo /opt/maker/local-kiosk.sh status      # 页面/自启/进程/自动登录 全在这
+sudo /opt/maker/local-kiosk.sh start       # 立刻打开（不开机重启也能测）
+sudo /opt/maker/local-kiosk.sh stop        # 关掉播放器（维护时用）
+sudo /opt/maker/local-kiosk.sh uninstall   # 移除自启（页面文件保留）
+```
+
+### 常见问题
+
+**Q：开机后停在登录界面？**
+A：自动登录没生效。检查 `grep ^AutomaticLogin /etc/gdm3/custom.conf`，
+或重跑 `sudo /opt/maker/local-kiosk.sh install`（它会自动写入并备份原文件）。
+
+**Q：桌面出来了但没全屏？**
+A：`--kiosk` 参数缺失或被浏览器忽略。手动验证：
+
+```bash
+chromium --kiosk "file:///srv/maker/current/index.html?lowfx=1"
+firefox  --kiosk "file:///srv/maker/current/index.html?lowfx=1"
+```
+
+能全屏说明参数没问题，检查 `/etc/maker-kiosk.conf` 的 `BROWSER=` 是否写成了实际存在的命令。
+
+**Q：Wayland 下 kiosk 有问题？**
+A：登录界面右上角齿轮切换到 “Ubuntu on Xorg”，或设置
+`/etc/gdm3/custom.conf` 中 `WaylandEnable=false`。
+
+**Q：播放器更新了页面却还是旧的？**
+A：kiosk 打开的是本地文件，更新后需要重启播放器：
+
+```bash
+sudo /opt/maker/local-kiosk.sh stop && sudo /opt/maker/local-kiosk.sh start
+```
+
+可以加到 crontab 每天凌晨刷新一次：`0 4 * * * /opt/maker/local-kiosk.sh stop && sleep 2 && /opt/maker/local-kiosk.sh start`

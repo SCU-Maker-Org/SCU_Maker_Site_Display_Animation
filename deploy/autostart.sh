@@ -54,8 +54,26 @@ show() {
   done
 }
 
+desktop_autostart_user() {
+  loginctl list-sessions --no-legend 2>/dev/null | awk '{print $3}' | grep -v '^$' | head -n1
+}
+
+show_desktop() {
+  local u home
+  u="$(desktop_autostart_user)"; [ -n "$u" ] || u="$(getent passwd | awk -F: '$3>=1000 && $3<65000 {print $1}' | head -n1)"
+  home="$(getent passwd "$u" | cut -d: -f6)"
+  if [ -f "$home/.config/autostart/maker-kiosk.desktop" ]; then
+    echo "桌面自启     : 已安装（$home/.config/autostart/maker-kiosk.desktop）"
+  else
+    echo "桌面自启     : 未安装（sudo /opt/maker/local-kiosk.sh install）"
+  fi
+  grep -E '^AutomaticLogin' /etc/gdm3/custom.conf 2>/dev/null || echo "自动登录     : 未开启"
+}
+
 status() {
   show
+  echo
+  show_desktop
   echo
   echo "提示："
   echo "  - nginx 提供 http://<IP>/ 访问（局域网其它设备可用）"
@@ -76,17 +94,25 @@ enable_all() {
     echo "    未找到 maker 站点配置，跳过。请先运行 deploy/install.sh"
   fi
 
-  echo "==> 3/4 全屏 kiosk"
+  echo "==> 3/4 开机全屏播放器"
   if [ "$WITH_KIOSK" = "1" ]; then
+    # 带 --with-kiosk：安装并启用（桌面自启 + 自动登录 + 立刻启动）
     if [ -x /opt/maker/local-kiosk.sh ]; then
       bash /opt/maker/local-kiosk.sh install
     else
       bash "$SCRIPT_DIR/local-kiosk.sh" install
     fi
-  elif systemctl list-unit-files maker-kiosk.service --no-legend 2>/dev/null | grep -q .; then
-    systemctl enable --now maker-kiosk.service
   else
-    echo "    未安装（需要时加 --with-kiosk）"
+    local u home
+    u="$(desktop_autostart_user)"
+    home="$(getent passwd "$u" | cut -d: -f6 2>/dev/null)"
+    if [ -f "$home/.config/autostart/maker-kiosk.desktop" ]; then
+      echo "    桌面自启已存在"
+    elif systemctl list-unit-files maker-kiosk.service --no-legend 2>/dev/null | grep -q .; then
+      systemctl enable --now maker-kiosk.service
+    else
+      echo "    未安装（加 --with-kiosk 一键安装开机全屏播放器）"
+    fi
   fi
 
   echo "==> 4/4 定时开关机"
