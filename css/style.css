@@ -937,6 +937,8 @@ body.intro-mode .brand {
   object-fit: cover;
   z-index: 5;
   opacity: 0;
+  will-change: opacity;      /* Firefox 合成层提示，避免逐帧重绘 */
+  transform: translateZ(0);
   background: var(--paper);
   pointer-events: none;
 }
@@ -949,4 +951,29 @@ body.intro-mode .brand {
   z-index: 30;
   opacity: 0;
   pointer-events: none;
+}
+/* ==========================================================================
+   性能与兼容（Firefox / 低配设备）
+   1) ~/.lowfx：脚本探测到低性能（或 URL 带 ?lowfx=1）时给 <body> 加类
+   2) @supports 检测不支持某些合成滤镜的浏览器（Firefox 对 conic-gradient 遮罩很慢）
+   ========================================================================== */
+
+/* 低配模式：去掉大面积像素噪点、旋转光环、扩散环、发光阴影 */
+body.lowfx .paper-noise { display: none; }
+
+body.lowfx .intro-slide.after .logo-final::after,
+body.lowfx .intro-halo { display: none; }
+
+body.lowfx .logo-final {
+  filter: none;
+}
+
+body.lowfx .cut-bg .ghost { opacity: 0.03; }
+
+/* 视频层：减少与下方纸张纹理的重复绘制 */
+.intro-video { backface-visibility: hidden; }
+
+/* 不支持 conic-gradient 的浏览器（老 Firefox）直接隐藏旋转光环 */
+@supports not (background: conic-gradient(#000, #fff)) {
+  .intro-slide.after .logo-final::after { display: none; }
 }

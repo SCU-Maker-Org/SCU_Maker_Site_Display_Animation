@@ -40,6 +40,8 @@ REQUIRED_FILES=(
   "js/poster.js"
   "js/app.js"
   "动画.mp4"
+  "assets/动画_web.mp4"
+  "assets/动画_poster.jpg"
 )
 
 # ---------------------------------------------------------------------- 工具 --
@@ -94,11 +96,13 @@ publish() {
 
   mkdir -p "$rel"
   # 排除 .git / 开发用素材：只发布网站真正需要的文件
+  # 注意：assets/ 里有开场视频的 Web 版（assets/动画_web.mp4）与封面图，必须同步
   rsync -a --delete \
     --exclude '.git/' \
-    --exclude 'assets/' \
     --exclude 'tools/' \
-    --exclude 'README.md' \
+    --exclude 'deploy/' \
+    --exclude 'preview/' \
+    --exclude 'assets/cat-*' \
     --exclude '*.py' \
     --exclude '*.deb' \
     "$REPO_DIR/" "$rel/"

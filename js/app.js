@@ -23,6 +23,45 @@
   if (settings.brandBlue) document.documentElement.style.setProperty('--blue', settings.brandBlue);
   if (settings.brandGold) document.documentElement.style.setProperty('--gold', settings.brandGold);
 
+  /* -------------------------------------------------------------------- 性能 --
+   * 低配模式（Firefox / 老机器 / 软渲染 GPU 上会自动开启）：
+   *   关闭大面积像素噪点、旋转光环、扩散环、发光阴影等耗 GPU 的效果，
+   *   但保留视频、色块切换、Logo 落位，页面不会卡顿。
+   *   - 强制关闭：index.html?lowfx=1
+   *   - 强制开启：index.html?lowfx=0
+   *   也可把 settings.lowfx 设为 true。 */
+  (function detectLowFx() {
+    var html = document.documentElement;
+    var body = document.body;
+    var force = new URLSearchParams(location.search).get('lowfx');
+    var low = false;
+
+    if (force === '1') low = true;
+    else if (force === '0') low = false;
+    else if (settings.lowfx === true) low = true;
+    else {
+      var ff = /firefox/i.test(navigator.userAgent);
+      var cores = navigator.hardwareConcurrency || 4;
+      var dpr = window.devicePixelRatio || 1;
+      if (ff) {
+        // Firefox：先用 <canvas> 读 GPU 渲染器，若有明确“软件渲染”信息则降级
+        try {
+          var c = document.createElement('canvas').getContext('webgl') ||
+                  document.createElement('canvas').getContext('experimental-webgl');
+          var dbg = c && c.getExtension('WEBGL_debug_renderer_info');
+          var r = dbg ? String(c.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+          if (/swiftshader|llvmpipe|software|basic/i.test(r)) low = true;
+        } catch (e) { /* 忽略 */ }
+      }
+      // 低核数 / 高 DPI 也按低配处理
+      if (cores <= 4 || dpr >= 1.75) low = true;
+      html.setAttribute('data-firefox', ff ? '1' : '0');
+    }
+
+    body.classList.toggle('lowfx', low);
+  })();
+
+
   var deck = {
     index: 0,
     slides: [],
@@ -131,6 +170,7 @@
       from.el.classList.remove('active');
       from.el.classList.add('past');
       if (from.stop) from.stop();
+      if (from !== to) releaseIdleVideo();
     }
 
     deck.index = next;
@@ -273,6 +313,18 @@
   }
   tickClock();
   setInterval(tickClock, 10000);
+
+  // 离开开场页后彻底释放视频（Firefox 上视频解码器不释放会越来越卡直到闪退）
+  function releaseIdleVideo() {
+    var v = document.querySelector('.intro-video');
+    if (!v) return;
+    try { v.pause(); } catch (e) { }
+    try {
+      v.removeAttribute('src');
+      while (v.firstChild) v.removeChild(v.firstChild);   // 也移除 <source>
+      v.load();
+    } catch (e) { }
+  }
 
   // 切到后台时暂停
   var wasPaused = false;

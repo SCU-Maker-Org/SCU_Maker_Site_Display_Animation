@@ -2,7 +2,7 @@
 
 一个**纯静态**的网页展示动画：不用装任何东西、不用开服务器，双击 `index.html` 全屏播放即可。
 
-- **第 1 页（开场）**：Logo 色块硬切（米白 / 院徽蓝 / 夜黑 / 院徽金 / 川大红 / 优雅灰）→ 播放 `动画.mp4` → **3 秒黑场过渡** → Logo 浮现，停留 10 秒
+- **第 1 页（开场）**：Logo 色块硬切（米白 / 院徽蓝 / 夜黑 / 院徽金 / 川大红 / 优雅灰）→ 播放 `assets/动画_web.mp4` → **黑场过渡** → Logo 浮现，停留 10 秒
 - **第 2 页起（海报）**：每个活动自动生成 **中文页 + 英文页** 两张，横向切换、自动循环
 - 配色取自**四川大学计算机学院院徽**：院徽蓝 `#4667ad`、浅钢蓝 `#7aa8e8`、院徽金 `#f7bd00`，整体浅色纸面
 - 左上角只在**海报页**显示协会 Logo（开场页整屏就是 Logo，不再重复）
@@ -54,7 +54,9 @@ js/config.js                ★ 你只需要改这个
 js/intro.js                 第一页：Logo 快切 + 播放 动画.mp4 + Logo 落位
 js/poster.js                海报页生成器（中 / 英双语）
 js/app.js                   播放控制：横移、循环、进度、快捷键
-动画.mp4                    开场动画视频（1280×720，可替换）
+动画.mp4                    原始动画视频（1280×720，源码保留）
+assets/动画_web.mp4         网页用视频（H.264 Main / 每 0.5 秒关键帧 / 无音轨，约 4.3MB）
+assets/动画_poster.jpg       视频封面（Firefox 等加载慢时先显示它）
 deploy/                     香橙派部署脚本（定时拉取 / nginx / 22:30关机·07:00开机，见 deploy/README.md）
 assets/、tools/             （上一版分层猫动画的素材，当前未使用，可删）
 敲钉子的猫.png / 哈气的猫.png  原始插画（素材备份）
@@ -94,7 +96,8 @@ settings: {
 
 ```js
 intro: {
-  video: '动画.mp4',        // 视频放在 index.html 同目录；换视频只改这里
+  video: 'assets/动画_web.mp4',   // 网页播放的视频；换视频改这里（建议按下方命令压缩）
+  poster: 'assets/动画_poster.jpg', // 视频封面图
   duration: 28500,          // 只是初始值，实际时长 = 色块 + 视频时长 + 10s 自动算
   mainTitle: 'SCU Maker',
   subTitle: '四川大学计算机学院（软件学院）开源硬件协会',
@@ -179,7 +182,8 @@ intro: {
 ## 四、第一页是怎么播放的
 
 1. **色块硬切**：HTML 层直接切换背景色，黑色 Logo 用 `invert` 反成白色；共 7 刀（含川大红、优雅灰）。
-2. **视频**：色块结束时开始播放 `动画.mp4`（muted + playsinline 自动播放），铺满画面（`object-fit: cover`）。
+2. **视频**：色块结束时开始播放 `assets/动画_web.mp4`（muted + playsinline 自动播放），铺满画面（`object-fit: cover`）；
+   播放前显示 `assets/动画_poster.jpg` 封面，避免黑屏。
 3. **结束**：**视频最后 1.5 秒就开始缓慢压黑**（sine 缓入缓出，与画面重叠）→ 视频播完时正好全黑，Logo 已就位 → 黑场**渐退**（1.2s，cubic 缓入缓出）露出纸面 + Logo，随后标题与打字机文案出现。
 4. **停留**：Logo 停留 10 秒后自动翻到第一张海报。
 
@@ -210,3 +214,36 @@ A：页面按屏幕自适应；第一页画板会等比缩放居中，海报页�
 
 **Q：循环时不想每次都播开场？**
 A：把 `showIntroOnce` 设为 `true`。
+
+---
+
+## 六、Firefox 卡顿 / 闪退的修复（已内置）
+
+原先用 18MB、10 Mbps 的原始视频，Firefox（尤其是香橙派这类 ARM 板）会疯狂占用内存直至闪退。
+现在做了四层处理：
+
+1. **换成网页专用视频** `assets/动画_web.mp4`：H.264 **Main** profile、1280×720、**无音轨**、**每 0.5 秒一个关键帧**、`+faststart`，体积 18MB → **4.3MB**。
+   重新生成命令（需要 ffmpeg）：
+
+   ```bash
+   ffmpeg -i 动画.mp4 -an -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p \
+          -crf 24 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
+          -movflags +faststart -preset slow -tune animation assets/动画_web.mp4
+   ffmpeg -i assets/动画_web.mp4 -frames:v 1 -vf scale=640:-1 assets/动画_poster.jpg -q:v 4
+   ```
+
+2. **视频加载策略**：`preload="none"` + `poster` 封面，播完立刻 `pause`，离开第一页时**彻底释放视频源**（Firefox 不释放解码器是内存暴涨的主因）。
+3. **播放兜底**：元数据 3.5 秒内没到、或视频 1.2 秒还不前进 → 自动放弃视频，页面照常显示 Logo，不会卡死。
+4. **低配模式** `body.lowfx`：自动检测 Firefox / 低核数 / 高 DPI / 软件渲染，关闭像素噪点、旋转光环、扩散环、发光阴影等耗 GPU 的效果。
+
+手动控制低配模式：
+
+```
+http://<IP>/?lowfx=1     强制开启低配（推荐给 Firefox / 香橙派）
+http://<IP>/?lowfx=0     强制关闭
+```
+
+如需全局默认开启，在 `js/config.js` 的 `settings` 里加一行 `lowfx: true`。
+
+> 展台机箱建议：**香橙派上优先用 Chromium kiosk**（见第五节的 `maker-kiosk.service`），
+> 性能与视频兼容性都比 Firefox 稳；如果必须用 Firefox，请配合 `?lowfx=1` 与更新的 Firefox ESR。

@@ -60,7 +60,9 @@
         '<div class="bg-paper"></div>' +
         '<div class="paper-grid"></div>' +
         '<div class="paper-noise"></div>' +
-        '<video class="intro-video" src="' + esc(I.video || '动画.mp4') + '" muted playsinline preload="auto"></video>' +
+        '<video class="intro-video" muted playsinline preload="none" poster="' + esc(I.poster || 'assets/动画_poster.jpg') + '">' +
+          '<source src="' + esc(I.video || 'assets/动画_web.mp4') + '" type="video/mp4">' +
+        '</video>' +
         '<div class="artboard">' +
           '<div class="intro-halo"></div>' +
           '<div class="logo-final"><img alt="SCU Maker logo" src="' + esc(settings.logoImage || "SCU Maker's Logo.png") + '"></div>' +
@@ -111,13 +113,24 @@
     }
     computeTimeline();
 
-    video.addEventListener('loadedmetadata', function () {
+    function onMeta() {
+      videoMeta = true;
       if (isFinite(video.duration) && video.duration > 0.2) {
         videoDur = video.duration * 1000;
         computeTimeline();
         if (running) draw(t);
       }
-    });
+    }
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('loadeddata', onMeta);
+    video.addEventListener('canplay', onMeta);
+    // 超时兜底：3.5 秒还读不到元数据就当视频不可用，直接走“只有 Logo”的路径
+    setTimeout(function () {
+      if (!videoMeta) {
+        videoDur = 1200;
+        computeTimeline();
+      }
+    }, 3500);
     video.addEventListener('error', function () {
       // 视频加载失败时缩短这一段，至少 Logo 还能正常出现
       videoDur = 1500;
@@ -129,6 +142,8 @@
     var curCut = -1;
     var cutDone = false;
     var videoOn = false;
+    var videoFrozen = false;
+    var videoWatch = null;
 
     /* ---- Logo 色块硬切 ---- */
     function applyCut(i) {
@@ -179,13 +194,20 @@
       return '';
     }
 
-    /* ---- 视频控制 ---- */
+    /* ---- 视频控制（Firefox 降级：元数据到了才显示视频，否则显示静态封面） ---- */
+    var videoMeta = false;
+    var videoStarted = false;
     function playVideo(now) {
       if (videoOn) return;
       videoOn = true;
-      el.classList.add('video-on');
       try {
-        video.currentTime = Math.max(0, (now - T.videoStart) / 1000);
+        // 只在第一次进入时 set currentTime（每次都设会让 Firefox 反复 seek，极卡）
+        if (!videoStarted) {
+          videoStarted = true;
+          video.preload = 'auto';
+          video.load();
+          video.currentTime = Math.max(0, (now - T.videoStart) / 1000);
+        }
         var p = video.play();
         if (p && p.catch) p.catch(function () { });
       } catch (e) { /* 自动播放被拦截时静默 */ }
@@ -195,6 +217,10 @@
       videoOn = false;
       el.classList.remove('video-on');
       try { video.pause(); } catch (e) { }
+    }
+    // 视频可播放（有尺寸）才显示，避免 Firefox 播不出来时整块黑屏 / 卡死
+    function canShowVideo() {
+      return videoMeta && video.videoWidth > 0 && video.readyState >= 2;
     }
 
     /* ---- 主绘制 ---- */
@@ -210,9 +236,27 @@
         document.body.dataset.theme = 'light';
       }
 
-      // 视频开始 / 结束
-      if (now >= T.videoStart && now < T.videoEnd) playVideo(now);
-      else stopVideo();
+      // 视频开始 / 结束（能播才显示，否则保持纸面背景，不会黑屏）
+      if (now >= T.videoStart && now < T.videoEnd) {
+        playVideo(now);
+        var showVideo = canShowVideo() && !videoFrozen;
+        el.classList.toggle('video-on', showVideo);
+      } else {
+        stopVideo();
+      }
+
+      // Firefox 上若视频一直没进帧（currentTime 不前进），就放弃视频，避免整页卡死
+      if (videoOn && !videoFrozen) {
+        if (!videoWatch) { videoWatch = { t: now, ct: -1 }; }
+        if (now - videoWatch.t > 1200) {
+          if (Math.abs(video.currentTime - videoWatch.ct) < 0.05 && video.currentTime < 0.05) {
+            videoFrozen = true;
+            stopVideo();
+            el.classList.remove('video-on');
+          }
+          videoWatch = { t: now, ct: video.currentTime };
+        }
+      }
 
       // 黑场过渡：压黑 → Logo 落位 → 慢慢亮起
       var ba = 0;
@@ -262,6 +306,9 @@
         cutDone = false;
         curCut = -1;
         videoOn = false;
+        videoStarted = false;
+        videoFrozen = false;
+        videoWatch = null;
         lastTw = '';
         twEl.textContent = '';
         flashEl.style.opacity = '0';
