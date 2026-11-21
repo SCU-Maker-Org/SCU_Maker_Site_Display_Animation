@@ -204,11 +204,11 @@ start_now() {
   fi
   echo "启动浏览器（用户 $user）…"
   if [ "$user" = "$(id -un 2>/dev/null || echo root)" ]; then
-    setsid /bin/bash "$RUNNER" >/dev/null 2>&1 &
+    setsid /bin/bash "$RUNNER" >/tmp/maker-kiosk.out 2>&1 &
   else
-    runuser -u "$user" -- setsid /bin/bash "$RUNNER" >/dev/null 2>&1 &
+    runuser -u "$user" -- setsid /bin/bash "$RUNNER" >/tmp/maker-kiosk.out 2>&1 &
   fi
-  sleep 1
+  sleep 2
 }
 
 stop_now() {

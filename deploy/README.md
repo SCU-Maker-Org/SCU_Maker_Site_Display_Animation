@@ -889,3 +889,71 @@ sudo /opt/maker/local-kiosk.sh stop && sudo /opt/maker/local-kiosk.sh start
 ```
 
 可以加到 crontab 每天凌晨刷新一次：`0 4 * * * /opt/maker/local-kiosk.sh stop && sleep 2 && /opt/maker/local-kiosk.sh start`
+
+---
+
+## 十五、FireFox「already running, but is not responding」怎么解决
+
+### 现象
+
+开机后弹窗：
+
+> Firefox is already running, but is not responding. To use Firefox, you must first
+> close the existing Firefox process, restart your device, or use a different profile.
+
+### 原因
+
+Ubuntu 22 的 `firefox` 是 **snap 包**，启动要 5~15 秒。此时：
+
+1. 桌面自启项开始拉起第一个 Firefox；
+2. 你（或脚本）又启动了一次 → 第二个实例发现 profile 已被锁 → 弹这个框。
+
+也可能是之前异常退出（断电 / `pkill -9`）留下的 `lock` / `.parentlock` 文件。
+
+### 修复（已内置，更新脚本即可）
+
+```bash
+cd ~/Desktop/SCU_Maker_Site_Display_Animation
+git pull
+sudo install -m 755 deploy/maker-kiosk-run.sh /opt/maker/maker-kiosk-run.sh
+sudo /opt/maker/local-kiosk.sh stop
+sudo /opt/maker/local-kiosk.sh start
+```
+
+新版 `maker-kiosk-run.sh` 做了四件事：
+
+1. **`flock` 互斥锁**：同一时刻只允许一个播放器启动，重复的启动请求直接安静退出；
+2. **`MOZ_NO_REMOTE=1`**：不让 Firefox 去探测/连接已有实例（避免探测过程卡住弹框）；
+3. **启动前清理僵尸实例**：`kill -TERM` → 2 秒后 `kill -KILL`，并删除 profile 里的
+   `lock` / `.parentlock` 残留；
+4. **Chromium 也加了互斥**（`--user-data-dir` 固定，配合上面的锁）。
+
+### 强烈建议改用 Chromium
+
+在树莓派 4B 上 Chromium 启动更快、硬解更稳，也不会出现 snap 版 Firefox 的启动锁问题：
+
+```bash
+sudo apt update && sudo apt install -y chromium-browser
+sudo sed -i 's/^BROWSER=.*/BROWSER=chromium/' /etc/maker-kiosk.conf
+sudo /opt/maker/local-kiosk.sh stop && sudo /opt/maker/local-kiosk.sh start
+```
+
+### 手动应急
+
+```bash
+# 1) 看是谁在跑
+pgrep -a firefox
+
+# 2) 全部结束（snap 版要连父进程一起）
+pkill -f firefox; sleep 2; pkill -9 -f firefox
+
+# 3) 清 profile 锁
+rm -f ~/.mozilla/maker-kiosk/{lock,.parentlock}
+rm -f ~/.mozilla/firefox/*.default*/lock
+
+# 4) 再启动
+sudo /opt/maker/local-kiosk.sh start
+
+# 5) 看启动日志
+cat /tmp/maker-kiosk.out
+```

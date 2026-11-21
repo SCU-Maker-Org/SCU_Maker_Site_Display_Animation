@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SCU Maker 展台 —— 全屏打开页面（由桌面自启或 systemd 调用）
+# SCU Maker 展台 —— 全屏打开页面（由桌面自启 / systemd 调用）
 #   手工执行：bash /opt/maker/maker-kiosk-run.sh
+#
+#  FireFox 注意事项：
+#   Ubuntu 22 的 firefox 是 snap 包，启动很慢；这时“自启项 + 手动再启动”
+#   会同时拉起两个实例，弹出：
+#     “Firefox is already running, but is not responding…”
+#   因此这里统一使用唯一 profile 并加互斥锁，第二个实例直接安静退出。
 # =============================================================================
 set -u
 
@@ -14,7 +20,6 @@ DELAY="${KIOSK_DELAY:-0}"
 FILE="/srv/maker/current/index.html"
 [ -f "$FILE" ] || { echo "找不到 $FILE（先运行 sudo /opt/maker/sync.sh）"; exit 1; }
 
-# 组装地址
 if [ "$VIEW" = "http" ]; then
   URL="http://127.0.0.1/"
 else
@@ -22,7 +27,6 @@ else
 fi
 [ "$LOWFX" = "1" ] && URL="$URL?lowfx=1"
 
-# 自动挑选浏览器（配置里没写或写错了都能兜底）
 pick_browser() {
   local want="$1" b
   if [ -n "$want" ] && command -v "$want" >/dev/null 2>&1; then echo "$want"; return; fi
@@ -34,16 +38,40 @@ pick_browser() {
 BIN="$(pick_browser "$BROWSER")"
 [ -n "$BIN" ] || { echo "没有找到浏览器（chromium / firefox）"; exit 1; }
 
-# 桌面就绪后再开（桌面自启时基本为 0）
 if [ "${DELAY%%.*}" -gt 0 ] 2>/dev/null; then sleep "$DELAY"; fi
 
-echo "[$(date '+%F %T')] 打开 $URL （$BIN）"
-
-# 已经开着就不要重复开
-if pgrep -f -- "--kiosk" >/dev/null 2>&1; then
-  echo "已有 kiosk 浏览器在运行，退出"
+# ---- 互斥锁：保证同一时刻只有一个播放器实例 -------------------------------
+LOCK="/tmp/maker-kiosk.lock"
+exec 9>"$LOCK"
+if ! flock -n 9; then
+  echo "[$(date '+%F %T')] 播放器已在启动中，本次跳过"
   exit 0
 fi
+
+# 全局检查：任何 kiosk 浏览器在跑就不再启动
+if pgrep -f -- "--kiosk" >/dev/null 2>&1; then
+  echo "[$(date '+%F %T')] 已有 kiosk 浏览器在运行，跳过"
+  exit 0
+fi
+
+# ---- firefox：清理残留的“僵死”实例（不会弹 already running 框） -------------
+clean_stale_firefox() {
+  local pids
+  pids="$(pgrep -f 'firefox' 2>/dev/null || true)"
+  [ -n "$pids" ] || return 0
+  echo "[$(date '+%F %T')] 发现残留 firefox 进程，先结束：$pids"
+  # shellcheck disable=SC2086
+  kill -TERM $pids 2>/dev/null || true
+  sleep 2
+  pids="$(pgrep -f 'firefox' 2>/dev/null || true)"
+  if [ -n "$pids" ]; then kill -KILL $pids 2>/dev/null || true; fi
+  # 清掉可能残留的 profile 锁
+  rm -f "${KIOSK_PROFILE:-$HOME/.mozilla/maker-kiosk}/lock" \
+        "${KIOSK_PROFILE:-$HOME/.mozilla/maker-kiosk}/.parentlock" 2>/dev/null || true
+  rm -f "$HOME"/.mozilla/firefox/*.default*/lock 2>/dev/null || true
+}
+
+echo "[$(date '+%F %T')] 打开 $URL （$BIN）"
 
 case "$BIN" in
   firefox*)
@@ -61,13 +89,17 @@ user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
 user_pref("media.autoplay.default", 0);
 user_pref("media.autoplay.blocking_policy", 0);
 user_pref("security.fileuri.strict_origin_policy", false);
+// 允许页面脚本请求全屏（kiosk 参数之外的双保险）
+user_pref("full-screen-api.allow-trusted-requests-only", false);
+user_pref("browser.fullscreen.autohide", true);
 EOF
     fi
-    # --kiosk = 无地址栏无标签栏全屏
+    clean_stale_firefox
+    # MOZ_NO_REMOTE：不尝试连已有实例（避免 remote 探测导致卡住/弹窗）
+    export MOZ_NO_REMOTE=1
     exec firefox --kiosk --no-remote --profile "$PROFILE" "$URL"
     ;;
   *)
-    # chromium / chromium-browser：--kiosk 等价 F11 全屏，并允许静音自动播放
     exec "$BIN" \
       --kiosk \
       --incognito \
@@ -79,6 +111,7 @@ EOF
       --password-store=basic --use-mock-keychain \
       --disable-dev-shm-usage \
       --use-gl=egl \
+      --user-data-dir="${KIOSK_PROFILE:-$HOME/.config/maker-kiosk-chromium}" \
       --allow-file-access-from-files \
       "$URL"
     ;;
