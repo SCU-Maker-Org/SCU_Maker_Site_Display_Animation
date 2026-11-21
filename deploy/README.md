@@ -14,6 +14,7 @@ deploy/
 ├── sync.sh               拉取/发布/回滚脚本（定时器实际调用它）
 ├── power-schedule.sh     22:30 关机 / 07:00 RTC 唤醒
 ├── local-kiosk.sh        不用 nginx：Firefox 全屏打开本地 index.html 的启停脚本
+├── autostart.sh          开机自启总览：一键查看/启用/关闭所有 systemd 单元
 ├── maker-kiosk-run.sh    kiosk 实际启动器（Firefox / Chromium 全屏参数与 profile）
 ├── nginx-maker.conf      nginx 完整配置（Ubuntu/Debian 用）
 └── nginx-server.conf     nginx 站点片段（openEuler/CentOS/RHEL 用）
@@ -709,3 +710,73 @@ sudo /opt/maker/sync.sh --force
 
 > `sync.sh` 只有在检测到新 commit 时才会重新发布；如果只是修了脚本、仓库没变，
 > 可以先 `sudo rm -rf /srv/maker/releases/*` 再跑一次，或直接手动更新软链接。
+
+---
+
+## 十三、开机自启总览（哪些东西会随开机自动运行）
+
+### 会自动启动的组件
+
+| 组件（systemd 单元） | 什么时候装 | 开机后做什么 |
+| --- | --- | --- |
+| `nginx` | `install.sh` | 监听 80 端口，提供 `http://<IP>/`（局域网其它设备可访问） |
+| `maker-sync.timer` | `install.sh` | 开机 1 分钟后开始，**每 5 分钟**从 GitHub 检查更新并自动发布 |
+| `maker-kiosk.service` | 执行 `local-kiosk.sh install` 后 | 等桌面起来后**全屏打开页面**（本机显示器用） |
+| `maker-poweroff.timer` | 执行 `power-schedule.sh install` 后 | 每天 **22:30 关机** |
+| `maker-rtc-alarm.service` | 同上 | 每次开机写 RTC 闹钟，**07:00 自动开机** |
+
+### 一条命令查看 / 开关
+
+```bash
+sudo /opt/maker/autostart.sh status     # 每项是否“开机自启 / 当前运行”
+sudo /opt/maker/autostart.sh enable     # 全部启用并立即启动
+sudo /opt/maker/autostart.sh disable    # 全部关闭开机自启（不会停止正在运行的进程）
+```
+
+可选参数：
+
+```bash
+# 连“全屏 kiosk”一起装上（没装过 maker-kiosk.service 时用它）
+sudo /opt/maker/autostart.sh enable --with-kiosk
+
+# 只用 file:// 本机播放、不需要 nginx
+sudo /opt/maker/autostart.sh enable --no-nginx
+```
+
+`status` 输出示例：
+
+```
+组件                         开机自启      当前状态
+---------------------------- --------     --------
+nginx                        enabled      active
+maker-sync.timer             enabled      active
+maker-kiosk.service          enabled      active
+maker-poweroff.timer         enabled      active
+maker-rtc-alarm.service      enabled      active
+```
+
+### 两种播放方式可以并存
+
+- **本机显示器**：`maker-kiosk.service` 用 `file:///srv/maker/current/index.html?lowfx=1` 全屏
+- **局域网其它设备**：`nginx` 提供 `http://<IP>/`
+
+两者读的是同一个 `current` 目录，所以只装一个 `sync.sh` 就能同时更新。
+
+### 单独控制某一项
+
+```bash
+sudo systemctl status nginx
+sudo systemctl disable --now nginx          # 关掉并停止
+sudo systemctl enable  --now maker-sync.timer
+sudo systemctl list-timers 'maker-*'        # 看所有 maker 定时器
+```
+
+### 常见疑问
+
+**Q：开机后要等多久页面才会出来？**
+A：nginx 与 sync 在系统启动阶段就跑；kiosk 依赖图形桌面，脚本默认等 `KIOSK_DELAY=8` 秒；
+如果自动登录慢，把 `/etc/maker-kiosk.conf` 里的 `KIOSK_DELAY` 调到 15~20。
+
+**Q：断电重启后页面还是旧的？**
+A：`maker-sync.timer` 开机 1 分钟后才第一次检查；急的话 `sudo /opt/maker/sync.sh`。
+kiosk 浏览器打开的是本地 `current`，更新后需要 `sudo systemctl restart maker-kiosk` 才会刷新画面。

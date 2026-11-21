@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SCU Maker 展台 —— 一键安装（在香橙派 Kunpeng Pro / openEuler·Ubuntu·Debian 上执行）
+# SCU Maker 展台 —— 一键安装（树莓派 4B + Ubuntu 22 为主，兼容 Debian / openEuler）
 # -----------------------------------------------------------------------------
 #  做的事情：
 #    1. 安装 nginx、git、rsync、curl
@@ -49,6 +49,7 @@ install -m 755 "$SCRIPT_DIR/sync.sh" /opt/maker/sync.sh
 install -m 755 "$SCRIPT_DIR/power-schedule.sh" /opt/maker/power-schedule.sh
 install -m 755 "$SCRIPT_DIR/local-kiosk.sh" /opt/maker/local-kiosk.sh
 install -m 755 "$SCRIPT_DIR/maker-kiosk-run.sh" /opt/maker/maker-kiosk-run.sh
+install -m 755 "$SCRIPT_DIR/autostart.sh" /opt/maker/autostart.sh
 
 echo "==> 4/8 安装 nginx 站点配置"
 # 禁用发行版默认站点，避免与之冲突
@@ -152,4 +153,5 @@ echo "退回上一版: sudo /opt/maker/sync.sh --rollback"
 echo "更新日志 : tail -f /srv/maker/logs/sync.log"
 echo "定时开关机: sudo /opt/maker/power-schedule.sh status"
 echo "本机全屏(不用 nginx): sudo /opt/maker/local-kiosk.sh install"
+echo "开机自启总览: sudo /opt/maker/autostart.sh status"
 echo "=========================================="
