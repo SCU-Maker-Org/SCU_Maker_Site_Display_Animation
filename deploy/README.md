@@ -304,3 +304,54 @@ timedatectl set-ntp true          # 开机后自动校时
 timedatectl                       # 查看 RTC/Synchronized 状态
 sudo hwclock --systohc            # 必要时把系统时间写回 RTC
 ```
+---
+
+## 八、openEuler 上「nginx 首页 404」的排查（已内置修复）
+
+香橙派 Kunpeng Pro 出厂多为 **openEuler**，访问 `http://<IP>/` 出现 nginx 的 **404 Not Found**，
+99% 是下面三种原因之一。新版 `install.sh` / `sync.sh` 已经自动处理，若你用的是旧脚本或手动部署，按顺序执行：
+
+```bash
+# 0. 先确认 404 是谁返回的：nginx 的 404 页面右下角会显示 “nginx/版本号”
+#    如果是 "404 Not Found  nginx" 说明是 nginx；如果是 openEuler 页面，说明访问的不是本机 nginx
+
+# 1. 站点是否指向了正确的目录
+ls -l /srv/maker/current/            # 应该有 index.html css js 动画.mp4
+readlink -f /srv/maker/current       # 应指向 /srv/maker/releases/<版本>
+[ -f /srv/maker/current/index.html ] || echo "还没有发布过：运行 sudo /opt/maker/sync.sh"
+
+# 2. 目录权限（/srv 默认 700 会让 nginx 进不去 → 404）
+sudo chmod 755 /srv /srv/maker
+sudo chmod -R a+rX /srv/maker/releases
+
+# 3. SELinux（openEuler 默认 enforcing，非标准目录会被拒绝访问 → 403/404）
+getenforce
+sudo dnf install -y policycoreutils-python-utils
+sudo semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?"
+sudo restorecon -R /srv/maker
+
+# 4. 配置有没有生效 / 有没有被默认站点覆盖
+sudo nginx -T | grep -E "root|server_name|listen"
+sudo systemctl restart nginx
+
+# 5. 本机自测（排除浏览器缓存）
+curl -I http://127.0.0.1/
+```
+
+如果 `curl -I http://127.0.0.1/` 返回 `200` 而浏览器仍 404，就是**浏览器缓存**：
+`Ctrl + Shift + R` 强制刷新，或在开发工具里勾选 “Disable cache”。
+
+如果浏览器访问的是 `http:// 192.168.10.8` 这种**带空格**的地址，请确认实际是 `http://192.168.10.8/`。
+
+### 关于同步脚本报 “已是最新版本 c806994，无需更新”
+
+看到这一行说明**代码已经拉下来了**（HEAD 和远端一致），站点目录应该在，只是 nginx 没指对。
+说明你的板子上 `sync.sh` 是旧版（缺少 chmod / restorecon 步骤），更新脚本并重新发布：
+
+```bash
+cd ~/SCU_Maker_Site_Display_Animation
+git pull                                  # 拿到最新 deploy 脚本
+sudo install -m 755 deploy/sync.sh /opt/maker/sync.sh
+sudo /opt/maker/sync.sh                   # 重新发布（会带上权限与 SELinux 修复）
+ls -l /srv/maker/current/
+```

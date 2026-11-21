@@ -62,8 +62,21 @@ case "$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}")" in
     install -m 644 "$SCRIPT_DIR/nginx-server.conf" /etc/nginx/conf.d/maker.conf
     ;;
 esac
+# SELinux 放行（openEuler 默认 enforcing，否则访问会 403/404）
+if command -v getenforce >/dev/null 2>&1; then
+  setsebool -P httpd_can_network_connect 1 2>/dev/null || true
+  semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null \
+    || dnf install -y policycoreutils-python-utils >/dev/null 2>&1 \
+       && semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null || true
+  restorecon -R /srv/maker 2>/dev/null || true
+fi
+# 目录权限（nginx 以 nginx 用户运行，需可进入并读文件）
+chmod 755 /srv /srv/maker
+chmod -R a+rX /srv/maker/releases 2>/dev/null || true
+
 nginx -t
-systemctl reload nginx
+systemctl enable nginx >/dev/null 2>&1 || true
+systemctl restart nginx
 
 echo "==> 5/8 首次拉取并发布"
 REPO_URL="$REPO_URL" /opt/maker/sync.sh || true

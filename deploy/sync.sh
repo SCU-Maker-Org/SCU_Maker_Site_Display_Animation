@@ -109,8 +109,12 @@ publish() {
     [ -s "$rel/$f" ] || { rm -rf "$rel"; die "缺少必需文件：$f（版本 ${sha:0:7}）"; }
   done
 
-  # 原子切换 current
+  # 原子切换 current（先 chmod，再切链接，避免 nginx 短暂读不到）
+  chmod 755 /srv 2>/dev/null || true
   chmod -R a+rX "$rel"
+  if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" != "Disabled" ]; then
+    restorecon -R "$rel" 2>/dev/null || true
+  fi
   ln -sfn "$rel" "$CUR_LINK"
   echo "$ts" > "$BASE_DIR/CURRENT_VERSION"
   log "已发布 $ts（$(du -sh "$rel" | cut -f1)）"
