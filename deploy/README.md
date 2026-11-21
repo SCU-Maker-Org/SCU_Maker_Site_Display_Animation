@@ -580,3 +580,45 @@ sudo bash ~/maker-src/deploy/local-kiosk.sh install   # 开机全屏打开 file:
 - `dnf / yum` 安装分支（脚本会优先走 `apt-get`）
 - `setsebool / semanage / restorecon`（检测不到 SELinux 自动跳过）
 - `firewall-cmd`（Ubuntu 用 `ufw`，脚本也会自动识别）
+
+---
+
+## 十一、常见报错速查（Ubuntu / 树莓派）
+
+### `nginx: [emerg] "worker_processes" directive is not allowed here`
+
+**原因**：`worker_processes / events{} / http{}` 属于**主配置**指令，只能出现在 `/etc/nginx/nginx.conf`。
+而 `/etc/nginx/sites-enabled/*` 是被 `nginx.conf` 里的 `include` 到 `http{}` 内部的，
+放进去就会报这个错。
+
+**修复**：把站点文件换成只有 `server{}` 的片段（仓库里的 `deploy/nginx-maker.conf` 已经是这个格式）：
+
+```bash
+# 1) 删掉坏掉的链接与文件
+sudo rm -f /etc/nginx/sites-enabled/maker.conf /etc/nginx/sites-available/maker.conf
+
+# 2) 重新写入正确片段（仓库里的新版）
+cd ~/SCU_Maker_Site_Display_Animation      # 或你的仓库目录
+git pull
+sudo install -m 644 deploy/nginx-maker.conf /etc/nginx/sites-available/maker.conf
+sudo ln -sfn /etc/nginx/sites-available/maker.conf /etc/nginx/sites-enabled/maker.conf
+
+# 3) 删掉默认站点（避免两个 default_server 冲突）
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 4) 检查并重启
+sudo nginx -t && sudo systemctl restart nginx
+```
+
+实际上**重新跑一遍 `sudo bash deploy/install.sh` 就会自动清理并修复**，
+脚本现在会：删除旧的 `sites-enabled/maker.conf` 与 `conf.d/maker.conf`、写入正确片段、
+`nginx -t` 失败时自动回滚，不会再留下坏配置。
+
+### 其他常见报错
+
+| 报错 | 原因 | 处理 |
+| --- | --- | --- |
+| `duplicate default server ...` | 默认站点还在 | `sudo rm -f /etc/nginx/sites-enabled/default` |
+| `listen [::]:80 ... address already in use` | 80 端口被占用 | `sudo ss -lntp \| grep :80`，停掉占用的服务 |
+| 浏览器 403 / 空页面 | 目录权限或路径不对 | `ls -l /srv/maker/current/`，`sudo chmod 755 /srv /srv/maker` |
+| `nginx: [emerg] unknown directive "listen"` | 片段被放在了 `nginx.conf` 外层 | 确认文件在 `sites-enabled/` 而非 `nginx.conf` 末尾追加 |

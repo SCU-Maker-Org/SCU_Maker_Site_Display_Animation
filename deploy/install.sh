@@ -54,14 +54,17 @@ echo "==> 4/8 安装 nginx 站点配置"
 # 禁用发行版默认站点，避免与之冲突
 rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
+# 清掉可能残留的旧版（完整 http{} 配置）配置，避免重复 listen
+rm -f /etc/nginx/sites-enabled/maker.conf /etc/nginx/sites-available/maker.conf /etc/nginx/conf.d/maker.conf 2>/dev/null || true
 
 case "$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}")" in
   ubuntu|debian)
+    # 只安装 server{} 片段，绝对不能把 worker_processes/events/http 放进 sites-enabled
     install -m 644 "$SCRIPT_DIR/nginx-maker.conf" /etc/nginx/sites-available/maker.conf
     ln -sfn /etc/nginx/sites-available/maker.conf /etc/nginx/sites-enabled/maker.conf
     ;;
   *)
-    # openEuler / CentOS / RHEL：主配置里已有 http{}，只放 server{} 片段
+    # openEuler / CentOS / RHEL：主配置里已有 http{}，同样只放 server{} 片段
     install -m 644 "$SCRIPT_DIR/nginx-server.conf" /etc/nginx/conf.d/maker.conf
     ;;
 esac
@@ -74,11 +77,18 @@ if command -v getenforce >/dev/null 2>&1; then
   semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null || true
   restorecon -R /srv/maker 2>/dev/null || true
 fi
-# 目录权限（nginx 以 nginx 用户运行，需可进入并读文件）
+# 目录权限（nginx 以 www-data/nginx 用户运行，需可进入并读文件）
 chmod 755 /srv /srv/maker
 chmod -R a+rX /srv/maker/releases 2>/dev/null || true
 
-nginx -t
+if ! nginx -t; then
+  echo
+  echo "nginx 配置检查失败，已回滚到安装前的配置，请把上面的报错发给维护者。"
+  rm -f /etc/nginx/sites-enabled/maker.conf /etc/nginx/conf.d/maker.conf 2>/dev/null || true
+  [ -L /etc/nginx/sites-enabled/default ] || ln -sfn /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default 2>/dev/null || true
+  systemctl reload nginx 2>/dev/null || true
+  exit 1
+fi
 systemctl enable nginx >/dev/null 2>&1 || true
 systemctl restart nginx
 
