@@ -48,6 +48,7 @@ REQUIRED_FILES=(
   "assets/动画_web.mp4"
   "assets/动画_web_540.mp4"
   "assets/动画_poster.jpg"
+  "assets/飞扬_logo_white_bg.jpg"
 )
 
 # ---------------------------------------------------------------------- 工具 --

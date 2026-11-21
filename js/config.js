@@ -78,6 +78,44 @@ window.CONFIG = {
    * ---------------------------------------------------------------------- */
   posters: [
     {
+      // 长期举办的活动：date 留空，weekday 写「长期 / Ongoing service」即可
+      date: '',
+      weekday: '长期',
+      weekdayEn: 'Ongoing service',
+      color: '#7aa8e8',
+      duration: 10000,
+      image: '',
+      qr: '',
+
+      zh: {
+        tag: '创意分享',
+        category: '来SCU Maker，分享你的创意',
+        title: 'SCU Maker期待您能加入我们，分享您的创意',
+        speaker: 'SCU Maker',
+        speakerTitle: '',
+        time: '',
+        place: '“i创街”智能科学创新与开源硬件工坊 & 二基楼B101',
+        description: '',
+        highlights: ['物料提供', '教师指导', '竞赛', '长期开展'],
+        entry: '向全体四川大学师生开放',
+        qrText: '向全体四川大学师生开放'
+      },
+
+      en: {
+        tag: 'Creative Sharing',
+        category: 'Come to SCU Maker and Share Your Ideas',
+        title: 'SCU Maker Looks Forward to You Joining Us and Sharing Your Ideas',
+        speaker: 'SCU Maker',
+        speakerTitle: '',
+        time: '',
+        place: '',
+        description: '',
+        highlights: ['Materials Provided', 'Teacher Guidance', 'Competitions', 'Long-term Operation'],
+        entry: 'Open to all faculty and students of Sichuan University',
+        qrText: 'Open to all faculty and students of Sichuan University'
+      }
+    },
+    {
       date: '2026.11.22',
       weekday: '周日',
       weekdayEn: 'Sun',
@@ -114,7 +152,6 @@ window.CONFIG = {
         qrText: 'Check in on site'
       }
     },
-
     {
       // 长期举办的活动：date 留空，weekday 写「长期 / Ongoing service」即可
       date: '',
@@ -122,46 +159,11 @@ window.CONFIG = {
       weekdayEn: 'Ongoing service',
       color: '#7aa8e8',
       duration: 10000,
-      image: '',
-      qr: '',
-
-      zh: {
-        tag: '创意分享',
-        category: '来SCU Maker，分享你的创意',
-        title: 'SCU Maker期待您能加入我们，分享您的创意',
-        speaker: 'SCU Maker',
-        speakerTitle: '',
-        time: '',
-        place: '四川大学江安校区“i创街”智能科学创新与开源硬件工坊 & 四川大学江安校区二基楼B101',
-        description: '',
-        highlights: ['物料提供', '教师指导', '竞赛', '长期开展'],
-        entry: '向全体四川大学师生开放',
-        qrText: '向全体四川大学师生开放'
-      },
-
-      en: {
-        tag: 'Creative Sharing',
-        category: 'Come to SCU Maker and Share Your Ideas',
-        title: 'SCU Maker Looks Forward to You Joining Us and Sharing Your Ideas',
-        speaker: 'SCU Maker',
-        speakerTitle: '',
-        time: '',
-        place: '"i-Innovation Street" Intelligent Science Innovation & Open-Source Hardware Workshop, Jiang\'an Campus, Sichuan University & Room B101, No. 2 Basic Experiment Building, Jiang\'an Campus, Sichuan University',
-        description: '',
-        highlights: ['Materials Provided', 'Teacher Guidance', 'Competitions', 'Long-term Operation'],
-        entry: 'Open to all faculty and students of Sichuan University',
-        qrText: 'Open to all faculty and students of Sichuan University'
-      }
-    },
-
-    {
-      // 长期举办的活动：date 留空，weekday 写「长期 / Ongoing service」即可
-      date: '',
-      weekday: '长期',
-      weekdayEn: 'Ongoing service',
-      color: '#7aa8e8',
-      duration: 10000,
-      image: '',
+      // 海报主视觉：白底版（原图是抠图 PNG，直接放会有透明背景，这里用合成好的白底 JPG）
+      image: 'assets/飞扬_logo_white_bg.jpg',
+      imageLogo: true,          // 标志类图片：完整显示不裁切（换成活动照片时删掉这行）
+      // 其它可选：'assets/飞扬_logo_paper_bg.jpg'（米白底，和页面更融合）
+      //           'assets/飞扬_logo.png'（原透明底 PNG）
       qr: '',
 
       zh: {
@@ -185,7 +187,7 @@ window.CONFIG = {
         speaker: '"Feiyang" Club, Sichuan University',
         speakerTitle: '',
         time: '',
-        place: '"i-Chuang Street" Intelligent Science Innovation & Open-Source Hardware Offense-Defense Workshop, Jiang\'an Campus, Sichuan University',
+        place: '"i-Chuang Street" Intelligent Science Innovation & Open-Source Hardware Workshop, Jiang\'an Campus, Sichuan University',
         description: 'The "Feiyang" Club, Sichuan University runs an ongoing free computer repair charity service, offering troubleshooting, system maintenance, and hardware repair to students and faculty.',
         highlights: ['Free repair', 'Ongoing service'],
         entry: 'Walk in and ask — no appointment needed',

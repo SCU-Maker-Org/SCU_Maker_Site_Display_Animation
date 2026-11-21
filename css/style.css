@@ -977,3 +977,32 @@ body.lowfx .cut-bg .ghost { opacity: 0.03; }
 @supports not (background: conic-gradient(#000, #fff)) {
   .intro-slide.after .logo-final::after { display: none; }
 }
+/* ==========================================================================
+   海报主视觉：两种放图方式
+   1) 默认（活动实拍照片）  object-fit: cover 铺满，会裁切
+   2) .logo-image 模式（协会标志 / 报名海报） object-fit: contain 完整显示不裁切
+      config.js 里把该活动的 image 指向标志图，并在 style.css 里加 class 即可，
+      这里默认对带有 data-logo="1" 的视觉区生效。
+   ========================================================================== */
+
+/* 已经是“白底/米白底”的成品图：铺满整个视觉区，不再加 padding */
+.p-visual[data-logo="1"] > img.photo {
+  object-fit: contain;
+  padding: 0;
+  z-index: 3;
+}
+
+/* 透明底 PNG / 需要留白的标志：额外加 padding（config 里写 imagePad: true） */
+.p-visual[data-logo="pad"] > img.photo {
+  object-fit: contain;
+  padding: 9% 8%;
+  z-index: 3;
+}
+
+/* 标志类图片时，淡化背景装饰，让标志成为主角 */
+.p-visual[data-logo="1"] .grid-deco { opacity: 0.45; }
+.p-visual[data-logo="1"] .mark { opacity: 0.05; }
+.p-visual[data-logo="1"] .arc { opacity: 0.5; }
+
+/* 数字角标在标志图上会更清晰 */
+.p-visual[data-logo="1"] > .hint { display: none; }

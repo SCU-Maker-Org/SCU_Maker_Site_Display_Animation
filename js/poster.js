@@ -86,6 +86,11 @@
 
     var photo = d.image ? '<img class="photo" src="' + esc(d.image) + '" alt="">' : '';
 
+    // 标志类图片（协会 Logo / 标识）：用 contain 完整显示，不裁切
+    //   在 config.js 里给活动加 imageLogo: true 即可
+    var isLogoImg = !!(p.imageLogo || d.imageLogo || d.imageMode === 'logo');
+    var logoMode = isLogoImg ? (p.imagePad ? 'pad' : '1') : '';
+
     var qr = d.qr
       ? '<div class="qr-card"><div class="qr-box"><img src="' + esc(d.qr) + '" alt="QR"></div><p>' + esc(d.qrText || '') + '</p></div>'
       : '';
@@ -109,7 +114,7 @@
             chips +
           '</div>' +
           '<div class="poster-side reveal">' +
-            '<div class="p-visual">' +
+            '<div class="p-visual"' + (logoMode ? ' data-logo="' + logoMode + '"' : '') + '>' +
               '<div class="grid-deco"></div>' +
               '<div class="arc a1"></div>' +
               '<div class="arc a2"></div>' +
