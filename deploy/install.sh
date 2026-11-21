@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "请用 sudo 运行：sudo bash install.sh"; exit 1; }; }
 need_root
 
-echo "==> 1/7 安装依赖"
+echo "==> 1/8 安装依赖"
 if command -v dnf >/dev/null 2>&1; then
   dnf install -y nginx git rsync curl
   systemctl enable --now nginx
@@ -38,15 +38,16 @@ else
   echo "未识别的包管理器，请手动安装：nginx git rsync curl"; exit 1
 fi
 
-echo "==> 2/7 创建目录"
+echo "==> 2/8 创建目录"
 mkdir -p /srv/maker/{repo,releases,logs}
 chmod 755 /srv/maker
 
-echo "==> 3/7 安装同步脚本"
+echo "==> 3/8 安装同步脚本"
 install -d -m 755 /opt/maker
 install -m 755 "$SCRIPT_DIR/sync.sh" /opt/maker/sync.sh
+install -m 755 "$SCRIPT_DIR/power-schedule.sh" /opt/maker/power-schedule.sh
 
-echo "==> 4/7 安装 nginx 站点配置"
+echo "==> 4/8 安装 nginx 站点配置"
 # 禁用发行版默认站点，避免与之冲突
 rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
@@ -64,10 +65,10 @@ esac
 nginx -t
 systemctl reload nginx
 
-echo "==> 5/7 首次拉取并发布"
+echo "==> 5/8 首次拉取并发布"
 REPO_URL="$REPO_URL" /opt/maker/sync.sh || true
 
-echo "==> 6/7 安装 systemd 定时器（每 $INTERVAL 检查一次）"
+echo "==> 6/8 安装 systemd 定时器（每 $INTERVAL 检查一次）"
 cat > /etc/systemd/system/maker-sync.service <<EOF
 [Unit]
 Description=SCU Maker display: pull latest site from GitHub
@@ -98,12 +99,20 @@ EOF
 systemctl daemon-reload
 systemctl enable --now maker-sync.timer
 
-echo "==> 7/7 放行 80 端口"
+echo "==> 7/8 放行 80 端口"
 if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
   firewall-cmd --permanent --add-service=http >/dev/null
   firewall-cmd --reload >/dev/null
 elif command -v ufw >/dev/null 2>&1 && ufw status | grep -q active; then
   ufw allow 80/tcp >/dev/null
+fi
+
+echo "==> 8/8 定时开关机（可选：22:30 关机 / 07:00 开机）"
+if [ "${WITH_POWER:-ask}" = "1" ]; then
+  bash "$SCRIPT_DIR/power-schedule.sh" install || true
+elif [ "${WITH_POWER:-ask}" = "ask" ] && [ -t 0 ]; then
+  read -r -p "是否配置 22:30 自动关机、07:00 自动开机？[y/N] " ans
+  case "$ans" in y|Y|yes|YES) bash "$SCRIPT_DIR/power-schedule.sh" install || true ;; esac
 fi
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -114,4 +123,5 @@ echo "查看状态 : /opt/maker/sync.sh --status"
 echo "手动更新 : sudo /opt/maker/sync.sh"
 echo "退回上一版: sudo /opt/maker/sync.sh --rollback"
 echo "更新日志 : tail -f /srv/maker/logs/sync.log"
+echo "定时开关机: sudo /opt/maker/power-schedule.sh status"
 echo "=========================================="

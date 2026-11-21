@@ -55,7 +55,7 @@ js/intro.js                 第一页：Logo 快切 + 播放 动画.mp4 + Logo �
 js/poster.js                海报页生成器（中 / 英双语）
 js/app.js                   播放控制：横移、循环、进度、快捷键
 动画.mp4                    开场动画视频（1280×720，可替换）
-deploy/                     香橙派部署脚本（从 GitHub 定时拉取，见 deploy/README.md）
+deploy/                     香橙派部署脚本（定时拉取 / nginx / 22:30关机·07:00开机，见 deploy/README.md）
 assets/、tools/             （上一版分层猫动画的素材，当前未使用，可删）
 敲钉子的猫.png / 哈气的猫.png  原始插画（素材备份）
 SCU Maker's Logo.png        协会 Logo（透明底 PNG）

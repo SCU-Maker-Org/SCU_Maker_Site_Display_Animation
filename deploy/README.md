@@ -31,7 +31,8 @@ sudo bash ~/maker-src/deploy/install.sh
 4. 写入 nginx 站点配置（网站根目录 `/srv/maker/current`）；
 5. 首次拉取并发布；
 6. 安装 `maker-sync.timer`（**每 5 分钟**检查一次 GitHub 更新）；
-7. 放行 80 端口。
+7. 放行 80 端口；
+8. 询问是否配置**定时开关机**（22:30 关机 / 07:00 RTC 唤醒，见第七节）。
 
 完成后访问 `http://<香橙派IP>/` 即可。
 
@@ -241,3 +242,65 @@ BRANCH=dev sudo -E /opt/maker/sync.sh
 REPO_URL=https://<token>@github.com/SCU-Maker-Org/SCU_Maker_Site_Display_Animation.git sudo -E /opt/maker/sync.sh
 ```
 （token 会留在 `/srv/maker/repo/.git/config`，注意权限管理。）
+
+---
+
+## 七、定时开关机（22:30 关机 / 07:00 开机）
+
+```bash
+sudo bash deploy/power-schedule.sh install     # 安装（默认 22:30 关机 / 07:00 开机）
+sudo bash deploy/power-schedule.sh status      # 查看定时器与 RTC 闹钟
+sudo bash deploy/power-schedule.sh test        # 只写一次 RTC 闹钟，不关机
+sudo bash deploy/power-schedule.sh uninstall   # 卸载
+
+# 自定义时间
+sudo OFF_TIME=22:00 ON_HOUR=6 ON_MIN=30 bash deploy/power-schedule.sh install
+```
+
+脚本会创建：
+
+| 单元 | 作用 |
+| --- | --- |
+| `maker-poweroff.timer` | 每天 22:30 触发 `maker-poweroff.service` |
+| `maker-poweroff.service` | 关掉展台浏览器 → 写 RTC 闹钟 → `systemctl poweroff` |
+| `maker-rtc-alarm.service` | **每次开机时**写入“下一个 07:00”的 RTC 硬件闹钟 |
+| `/usr/local/sbin/maker-rtc-alarm.sh` | 真正写 `/sys/class/rtc/rtc0/wakealarm` 的脚本 |
+
+### 为什么“开机”要用 RTC 闹钟
+
+关机后 CPU 不再运行，任何定时任务（cron / systemd timer）都不会执行。
+能按时唤起机器的只有主板上的 **RTC 硬件闹钟**：关机时 RTC 仍由纽扣电池/待机供电，
+到点后给电源控制芯片一个唤醒信号。
+
+### 检查它是否真的有效（重要）
+
+```bash
+sudo bash deploy/power-schedule.sh test
+cat /sys/class/rtc/rtc0/wakealarm            # 应输出一个时间戳
+date -d @$(cat /sys/class/rtc/rtc0/wakealarm) # 应显示下一个 07:00
+```
+
+- **Linux 侧驱动**：香橙派 Kunpeng Pro（RK3588）板载 RTC 一般是 `rtc-hym8563`。如果 `/dev/rtc0` 存在但没有 `wakealarm`，需要确认内核设备树里给 RTC 节点加了 `wakeup-source;`，或改用 `rtcwake`。
+- **硬件/固件侧**：部分开发板的 ACPI/S5 电源在关机后不响应 RTC 闹钟，需要在 BIOS/固件里开启 **RTC Alarm / Wake on RTC / Resume by RTC** 之类选项；香橙派官方镜像通常默认开启。
+- 最稳妥的验证方式：设一个 10 分钟后的闹钟，`sudo poweroff`，观察是否能自动开机：
+
+```bash
+# 10 分钟后唤醒
+sudo rtcwake -m off -l -t "$(date -d '+10 minutes' +%s)"
+```
+
+如果 `rtcwake -m off` 能自动开机，而系统自带脚本不行，说明问题只在驱动/权限；反之则是固件不支持。
+
+### 关机后仍保持网络？不需要
+
+RTC 方案关机是**真关机**（功耗接近 0），不是挂起到内存，所以网口断开属正常现象。
+
+### 时间准确性
+
+唤醒时间以 **RTC 时钟**为准。若板子没联网时 NTP 同步过，RTC 可能偏差几分钟：
+
+```bash
+timedatectl set-ntp true          # 开机后自动校时
+timedatectl                       # 查看 RTC/Synchronized 状态
+sudo hwclock --systohc            # 必要时把系统时间写回 RTC
+```
