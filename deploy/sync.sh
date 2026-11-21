@@ -114,10 +114,17 @@ publish() {
     "$REPO_DIR/" "$rel/"
 
   # 校验必需文件
-  local f
+  local f missing=0
   for f in "${REQUIRED_FILES[@]}"; do
-    [ -s "$rel/$f" ] || { rm -rf "$rel"; die "缺少必需文件：$f（版本 ${sha:0:7}）"; }
+    if [ ! -s "$rel/$f" ]; then
+      log "缺少必需文件：$f（版本 ${sha:0:7}）"
+      missing=1
+    fi
   done
+  if [ "$missing" -ne 0 ]; then
+    rm -rf "$rel"
+    die "本次发布已中止，旧版本保持不变。请检查仓库是否完整（git ls-tree --name-only HEAD）"
+  fi
 
   # 原子切换 current（先 chmod，再切链接，避免 nginx 短暂读不到）
   chmod 755 /srv 2>/dev/null || true

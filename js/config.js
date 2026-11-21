@@ -126,6 +126,45 @@ window.CONFIG = {
       qr: '',
 
       zh: {
+        tag: '创意分享',
+        category: '来SCU Maker，分享你的创意',
+        title: 'SCU Maker期待您能加入我们，分享您的创意',
+        speaker: 'SCU Maker',
+        speakerTitle: '',
+        time: '',
+        place: '四川大学江安校区“i创街”智能科学创新与开源硬件工坊 & 四川大学江安校区二基楼B101',
+        description: '',
+        highlights: ['物料提供', '教师指导', '竞赛', '长期开展'],
+        entry: '向全体四川大学师生开放',
+        qrText: '向全体四川大学师生开放'
+      },
+
+      en: {
+        tag: 'Creative Sharing',
+        category: 'Come to SCU Maker and Share Your Ideas',
+        title: 'SCU Maker Looks Forward to You Joining Us and Sharing Your Ideas',
+        speaker: 'SCU Maker',
+        speakerTitle: '',
+        time: '',
+        place: '"i-Innovation Street" Intelligent Science Innovation & Open-Source Hardware Workshop, Jiang\'an Campus, Sichuan University & Room B101, No. 2 Basic Experiment Building, Jiang\'an Campus, Sichuan University',
+        description: '',
+        highlights: ['Materials Provided', 'Teacher Guidance', 'Competitions', 'Long-term Operation'],
+        entry: 'Open to all faculty and students of Sichuan University',
+        qrText: 'Open to all faculty and students of Sichuan University'
+      }
+    },
+
+    {
+      // 长期举办的活动：date 留空，weekday 写「长期 / Ongoing service」即可
+      date: '',
+      weekday: '长期',
+      weekdayEn: 'Ongoing service',
+      color: '#7aa8e8',
+      duration: 10000,
+      image: '',
+      qr: '',
+
+      zh: {
         tag: '互助',
         category: '电脑维修',
         title: '四川大学“飞扬”俱乐部长期免费维修电脑公益活动',
