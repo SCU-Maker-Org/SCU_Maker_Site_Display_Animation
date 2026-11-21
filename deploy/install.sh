@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# =============================================================================
+# SCU Maker 展台 —— 一键安装（在香橙派 Kunpeng Pro / openEuler·Ubuntu·Debian 上执行）
+# -----------------------------------------------------------------------------
+#  做的事情：
+#    1. 安装 nginx、git、rsync、curl
+#    2. 创建用户与目录：/srv/maker
+#    3. 安装部署脚本 /opt/maker/sync.sh
+#    4. 安装 nginx 站点配置（/srv/maker/current 为网站根目录）
+#    5. 首次拉取并发布
+#    6. 安装 systemd 定时器（每 5 分钟检查一次 GitHub 更新）
+#    7. 打开防火墙 80 端口（如有 firewalld / ufw）
+#
+#  用法：  sudo bash install.sh
+# =============================================================================
+set -euo pipefail
+
+REPO_URL="${REPO_URL:-https://github.com/SCU-Maker-Org/SCU_Maker_Site_Display_Animation.git}"
+INTERVAL="${INTERVAL:-5min}"          # 自动更新间隔，可改成 1min / 10min
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+need_root() { [ "$(id -u)" -eq 0 ] || { echo "请用 sudo 运行：sudo bash install.sh"; exit 1; }; }
+need_root
+
+echo "==> 1/7 安装依赖"
+if command -v dnf >/dev/null 2>&1; then
+  dnf install -y nginx git rsync curl
+  systemctl enable --now nginx
+elif command -v yum >/dev/null 2>&1; then
+  yum install -y nginx git rsync curl
+  systemctl enable --now nginx
+elif command -v apt-get >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y nginx git rsync curl
+  systemctl enable --now nginx
+else
+  echo "未识别的包管理器，请手动安装：nginx git rsync curl"; exit 1
+fi
+
+echo "==> 2/7 创建目录"
+mkdir -p /srv/maker/{repo,releases,logs}
+chmod 755 /srv/maker
+
+echo "==> 3/7 安装同步脚本"
+install -d -m 755 /opt/maker
+install -m 755 "$SCRIPT_DIR/sync.sh" /opt/maker/sync.sh
+
+echo "==> 4/7 安装 nginx 站点配置"
+# 禁用发行版默认站点，避免与之冲突
+rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
+
+case "$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}")" in
+  ubuntu|debian)
+    install -m 644 "$SCRIPT_DIR/nginx-maker.conf" /etc/nginx/sites-available/maker.conf
+    ln -sfn /etc/nginx/sites-available/maker.conf /etc/nginx/sites-enabled/maker.conf
+    ;;
+  *)
+    # openEuler / CentOS / RHEL：主配置里已有 http{}，只放 server{} 片段
+    install -m 644 "$SCRIPT_DIR/nginx-server.conf" /etc/nginx/conf.d/maker.conf
+    ;;
+esac
+nginx -t
+systemctl reload nginx
+
+echo "==> 5/7 首次拉取并发布"
+REPO_URL="$REPO_URL" /opt/maker/sync.sh || true
+
+echo "==> 6/7 安装 systemd 定时器（每 $INTERVAL 检查一次）"
+cat > /etc/systemd/system/maker-sync.service <<EOF
+[Unit]
+Description=SCU Maker display: pull latest site from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=REPO_URL=$REPO_URL
+ExecStart=/opt/maker/sync.sh --update
+Nice=10
+EOF
+
+cat > /etc/systemd/system/maker-sync.timer <<EOF
+[Unit]
+Description=Periodically update SCU Maker display from GitHub
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=$INTERVAL
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now maker-sync.timer
+
+echo "==> 7/7 放行 80 端口"
+if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+  firewall-cmd --permanent --add-service=http >/dev/null
+  firewall-cmd --reload >/dev/null
+elif command -v ufw >/dev/null 2>&1 && ufw status | grep -q active; then
+  ufw allow 80/tcp >/dev/null
+fi
+
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+echo
+echo "================ 安装完成 ================"
+echo "访问地址 : http://${IP:-<香橙派IP>}/"
+echo "查看状态 : /opt/maker/sync.sh --status"
+echo "手动更新 : sudo /opt/maker/sync.sh"
+echo "退回上一版: sudo /opt/maker/sync.sh --rollback"
+echo "更新日志 : tail -f /srv/maker/logs/sync.log"
+echo "=========================================="
