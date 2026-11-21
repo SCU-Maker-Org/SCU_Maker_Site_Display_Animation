@@ -8,6 +8,7 @@
 #
 #  用法：
 #     ./sync.sh                 # 正常更新
+#     ./sync.sh --force         # 强制重新发布当前版本（修了发布脚本后用）
 #     ./sync.sh --rollback      # 立即回滚到上一版
 #     ./sync.sh --status        # 查看当前状态
 #     BRANCH=dev ./sync.sh      # 临时拉取其它分支
@@ -32,6 +33,8 @@ LOCK_FILE="/tmp/maker-sync.lock"
 KEEP_RELEASES="${KEEP_RELEASES:-5}"     # 保留最近几个版本（回滚用）
 
 # 站点需要的文件（缺任何一个视为部署失败）
+# 注意：左上角校徽/院徽、Logo 都是根目录的中文/带空格文件名，必须一起发布，
+#      否则页面能打开但顶栏两张图会 404。
 REQUIRED_FILES=(
   "index.html"
   "css/style.css"
@@ -39,6 +42,8 @@ REQUIRED_FILES=(
   "js/intro.js"
   "js/poster.js"
   "js/app.js"
+  "SCU Maker's Logo.png"
+  "校徽+院徽（高清+抠图版）.png"
   "动画.mp4"
   "assets/动画_web.mp4"
   "assets/动画_web_540.mp4"
@@ -169,13 +174,23 @@ status() {
 case "${1:---update}" in
   --rollback) rollback ;;
   --status)   status ;;
+  --force)
+    # 强制用当前 HEAD 重新发布（例如修了发布脚本、或上次发布不完整）
+    if [ -d "$REPO_DIR/.git" ]; then
+      sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
+      log "强制重新发布 ${sha:0:7}"
+      publish "$sha"
+    else
+      die "仓库尚未克隆，先运行 /opt/maker/sync.sh 一次"
+    fi
+    ;;
   --update|"")
     sha="$(prepare_repo | tail -n 1)"
     if [ -n "${sha:-}" ] && [ ${#sha} -eq 40 ]; then
       publish "$sha"
     fi
     ;;
-  *) echo "用法：$0 [--update|--rollback|--status]"; exit 2 ;;
+  *) echo "用法：$0 [--update|--force|--rollback|--status]"; exit 2 ;;
 esac
 
 exit 0

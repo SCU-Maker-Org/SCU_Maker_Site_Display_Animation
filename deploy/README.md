@@ -622,3 +622,90 @@ sudo nginx -t && sudo systemctl restart nginx
 | `listen [::]:80 ... address already in use` | 80 端口被占用 | `sudo ss -lntp \| grep :80`，停掉占用的服务 |
 | 浏览器 403 / 空页面 | 目录权限或路径不对 | `ls -l /srv/maker/current/`，`sudo chmod 755 /srv /srv/maker` |
 | `nginx: [emerg] unknown directive "listen"` | 片段被放在了 `nginx.conf` 外层 | 确认文件在 `sites-enabled/` 而非 `nginx.conf` 末尾追加 |
+
+---
+
+## 十二、树莓派 Ubuntu 22：部署后 404 排查（按顺序做一遍）
+
+安装脚本最后会打印 `访问地址 : http://<IP>/`，但出现 **404 Not Found** 时，请依次执行，
+基本能定位到原因：
+
+### 步骤 1：确认页面文件是否真的发布了
+
+```bash
+ls -l /srv/maker/current/
+readlink -f /srv/maker/current          # 应指向 /srv/maker/releases/<版本>
+[ -f /srv/maker/current/index.html ] && echo "index.html 存在" || echo "没有内容，先跑 sudo /opt/maker/sync.sh"
+```
+
+如果 `current` 指向的目录里**没有 index.html**，说明同步没成功：
+
+```bash
+sudo /opt/maker/sync.sh                 # 看输出，应显示“已发布 …”
+tail -n 30 /srv/maker/logs/sync.log
+```
+
+> 常见原因：仓库里没有那两个根目录图片（`SCU Maker's Logo.png`、`校徽+院徽（高清+抠图版）.png`），
+> 新版 `sync.sh` 已把它们加入必需文件校验，缺了会直接报错而不是发布半套。
+
+### 步骤 2：确认 nginx 用的就是这个目录
+
+```bash
+sudo nginx -T | grep -E "server_name|root |listen " | head -20
+```
+
+应能看到 `root /srv/maker/current;` 和 `listen 80 default_server;`。
+如果没有任何输出或还是默认站点，重跑一次安装：
+
+```bash
+sudo rm -f /etc/nginx/sites-enabled/default
+cd ~/Desktop/SCU_Maker_Site_Display_Animation && git pull
+sudo bash deploy/install.sh
+```
+
+### 步骤 3：本机自测（排除浏览器/网络因素）
+
+```bash
+curl -I http://127.0.0.1/                  # 应为 HTTP/1.1 200 OK
+curl -s http://127.0.0.1/ | head -5        # 应看到 <!DOCTYPE html>
+```
+
+- `200` 但浏览器 404 → **浏览器缓存或输错地址**，`Ctrl+Shift+R` 强刷。
+- `403` → 目录权限：`sudo chmod 755 /srv /srv/maker && sudo chmod -R a+rX /srv/maker/releases`
+- `404` 且 `/srv/maker/current/index.html` 存在 → 看 `/var/log/nginx/error.log`：
+
+```bash
+sudo tail -n 30 /var/log/nginx/error.log
+```
+
+常见的是 `open() "/srv/maker/current/index.html" failed (13: Permission denied)`——
+Ubuntu 的 nginx 以 `www-data` 运行，`/srv` 默认 755 通常没问题，但如果之前 `chmod 700` 过就要改回。
+
+### 步骤 4：局域网其它设备访问不了
+
+```bash
+sudo ss -lntp | grep :80                # nginx 是否在监听 0.0.0.0:80
+sudo ufw status                         # 若启用 ufw，需 sudo ufw allow 80/tcp
+ip addr show | grep "inet "             # 确认板子的 IP（打印的地址取的是第一个网卡）
+```
+
+树莓派常见情况：同时有 `wlan0` 和 `eth0`，脚本打印的可能是**另一个网段的 IP**，
+以你实际要访问的那块网卡的 IP 为准。
+
+### 步骤 5：页面能开但顶栏图片/视频 404
+
+```bash
+ls -l "/srv/maker/current/SCU Maker's Logo.png" "/srv/maker/current/校徽+院徽（高清+抠图版）.png"
+ls -l /srv/maker/current/assets/
+```
+
+缺少就说明发布时没同步到（旧版 `sync.sh` 会漏掉根目录图片），更新脚本后重新发布：
+
+```bash
+cd ~/Desktop/SCU_Maker_Site_Display_Animation && git pull
+sudo install -m 755 deploy/sync.sh /opt/maker/sync.sh
+sudo /opt/maker/sync.sh --force
+```
+
+> `sync.sh` 只有在检测到新 commit 时才会重新发布；如果只是修了脚本、仓库没变，
+> 可以先 `sudo rm -rf /srv/maker/releases/*` 再跑一次，或直接手动更新软链接。
