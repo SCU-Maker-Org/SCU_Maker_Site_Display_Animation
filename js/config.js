@@ -66,131 +66,87 @@ window.CONFIG = {
    *  zh / en 里各自放这一种语言的全部文字：
    *      tag（左上角标签）, category（同行小字）, title,
    *      speaker, speakerTitle, time, place, description,
-   *      highlights[], entry, qrText, speakerAvatar(可选)
+   *      highlights[], entry, qrText
    *
    *  · 底部时间栏 = 日期 + 时段，自动拼成「2026年11月22日14:00-17:00」这样的格式。
    *  · title 里用 **文字** 可以加金色下划线强调。
    *  · 想加活动：复制一整个 { ... } 对象即可，页码与进度条会自动增加。
    * ---------------------------------------------------------------------- */
   posters: [
-
     {
       date: '2026.11.22',
-      weekday: '周六',
-      weekdayEn: 'Sat',
-      color: '#f7bd00',
-      duration: 10000,
-      image: '',
-      qr: '',
-
-      zh: {
-        tag: '创客工坊',
-        category: '第 07 期 · 小猫灯制作',
-        title: '从 0 到 1：做一个会发光的小猫灯',
-        speaker: '李思远',
-        speakerTitle: 'SCU Maker 技术部部长 / 单片机爱好者',
-        speakerAvatar: '',
-        time: '14:00 — 17:00',
-        place: '四川大学江安校区 · 计算机学院实验中心 B302',
-        description: '一把螺丝刀、一颗 LED、一块单片机，就能让一只小猫在夜里眨眼睛。带你从电路搭建、焊接、编写控制程序到外壳打磨，亲手完成属于自己的桌面小夜灯。',
-        highlights: ['零基础可参加', '工具与材料现场提供', '作品可带走'],
-        entry: '免费 · 需提前报名',
-        qrText: '扫码报名 · 限 30 人'
-      },
-
-      en: {
-        tag: 'WORKSHOP',
-        category: 'Vol. 07 · Cat Lamp Build',
-        title: 'From Zero to One: Build a Glowing Cat Lamp',
-        speaker: 'Li Siyuan',
-        speakerTitle: 'Head of Tech, SCU Maker · Microcontroller enthusiast',
-        speakerAvatar: '',
-        time: '14:00 – 17:00',
-        place: 'Lab Center B302, College of Computer Science, Jiang\'an Campus, SCU',
-        description: 'A screwdriver, an LED and a microcontroller are all it takes to make a little cat blink in the dark. Build the circuit, solder it, write the firmware and finish the shell — leave with your own desk lamp.',
-        highlights: ['No experience needed', 'Tools & materials provided', 'Take your build home'],
-        entry: 'Free · RSVP required',
-        qrText: 'Scan to register · 30 seats'
-      }
-    },
-
-    {
-      date: '2026.12.06',
-      weekday: '周六',
-      weekdayEn: 'Sat',
+      weekday: '周日',
+      weekdayEn: 'Sun',
       color: '#7aa8e8',
       duration: 10000,
       image: '',
       qr: '',
 
       zh: {
-        tag: '前辈沙龙',
-        category: '计算机视觉 × 生成模型',
-        title: '在图像里寻找光：扩散模型与创意工具',
-        speaker: '汪 清',
-        speakerTitle: '计算机学院副教授 / 计算机视觉方向',
-        speakerAvatar: '',
+        tag: '沙龙',
+        category: 'Vibe Coding',
+        title: '从0到1，用好电脑，开启你的创意之旅',
+        speaker: '邓博襦等',
+        speakerTitle: 'SCU Maker核心成员',
         time: '19:00 — 21:00',
-        place: '四川大学江安校区 · 一号教学楼 A101 报告厅',
-        description: '从一张草图到一幅作品，扩散模型如何理解“光”与“美”？本次沙龙将拆解生成模型的原理脉络，并聊聊它如何融入创作者的日常工具链。',
+        place: '四川大学江安校区 · 二基楼B101',
+        description: '面向计算机小白展开的计算机基础知识、Vibe Coding技巧与应用开发基础知识分享',
         highlights: ['现场演示', '开放问答'],
-        entry: '免费入场 · 现场签到',
-        qrText: '扫码报名 · 现场签到'
+        entry: '现场签到',
+        qrText: '现场签到'
       },
 
       en: {
-        tag: 'SHARING',
-        category: 'Computer Vision × Generative Models',
-        title: 'Finding Light in Images: Diffusion Models & Creative Tools',
-        speaker: 'Wang Qing',
-        speakerTitle: 'Associate Professor, Computer Vision',
-        speakerAvatar: '',
-        time: '19:00 – 21:00',
-        place: 'Lecture Hall A101, Teaching Building 1, Jiang\'an Campus, SCU',
-        description: 'From a rough sketch to a finished artwork — how do diffusion models understand light and beauty? We break down how generative models work, and how they fit into a creator\'s everyday toolkit.',
+        tag: 'SALON',
+        category: 'Vibe Coding',
+        title: 'From 0 to 1: Make Good Use of Your Computer and Start Your Creative Journey',
+        speaker: 'Boru Deng, etc.',
+        speakerTitle: 'Core Member, SCU Maker',
+        time: '19:00 — 21:00',
+        place: 'Room B101, Building 2, Jiang\'an Campus, Sichuan University',
+        description: 'A sharing session for computer beginners covering computer fundamentals, Vibe Coding tips, and application development basics.',
         highlights: ['Live demo', 'Open Q&A'],
-        entry: 'Free entry · Check in on site',
-        qrText: 'Scan to register'
+        entry: 'Check in on site',
+        qrText: 'Check in on site'
       }
     },
 
     {
-      date: '2026.12.20',
-      weekday: '周六',
-      weekdayEn: 'Sat',
-      color: '#f7bd00',
+      // 长期举办的活动：date 留空，weekday 写「长期 / Ongoing service」即可
+      date: '',
+      weekday: '长期',
+      weekdayEn: 'Ongoing service',
+      color: '#7aa8e8',
       duration: 10000,
       image: '',
       qr: '',
 
       zh: {
-        tag: '创客马拉松',
-        category: '48 小时 · 自由组队',
-        title: '造物马拉松：猫的 48 小时',
-        speaker: '全体理事',
-        speakerTitle: 'SCU Maker 理事团队',
-        speakerAvatar: '',
-        time: '09:00-次日 21:00',
-        place: '四川大学江安校区 · 工程训练中心 创客空间',
-        description: '48 小时组队、选主题、做原型、路演。硬件、软件、设计、机械可自由组队；现场提供 3D 打印机、激光切割机、电子元件与全天候咖啡。',
-        highlights: ['自由组队 2–4 人', '设备与耗材全提供', '最佳作品入驻学院展厅'],
-        entry: '免费 · 自由组队',
-        qrText: '扫码组队报名'
+        tag: '互助',
+        category: '电脑维修',
+        title: '四川大学软件学院“飞扬”协会长期免费维修电脑公益活动',
+        speaker: '四川大学软件学院“飞扬”协会',
+        speakerTitle: '',
+        time: '',
+        place: '四川大学江安校区“i创街”智能科学创新与开源硬件工坊',
+        description: '四川大学软件学院“飞扬”协会长期开展免费维修电脑公益活动，面向全校师生提供电脑故障排查、系统维护与硬件检修等互助服务。',
+        highlights: ['免费维修', '长期开展'],
+        entry: '欢迎直接进门咨询',
+        qrText: '欢迎直接进门咨询'
       },
 
       en: {
-        tag: 'HACKATHON',
-        category: '48 Hours · Team Up',
-        title: 'Make-a-Thon: 48 Hours of Cats',
-        speaker: 'SCU Maker Board',
-        speakerTitle: 'The SCU Maker organizing team',
-        speakerAvatar: '',
-        time: '09:00-next day 21:00',
-        place: 'Maker Space, Engineering Training Center, Jiang\'an Campus, SCU',
-        description: 'Team up, pick a theme, build a prototype and pitch it — all in 48 hours. Hardware, software, design and mechanical makers welcome. 3D printers, laser cutters, electronics and coffee provided.',
-        highlights: ['Teams of 2–4', 'Equipment & materials provided', 'Best work shown at the college'],
-        entry: 'Free · Form a team',
-        qrText: 'Scan to form a team'
+        tag: 'Mutual Help',
+        category: 'PC Repair',
+        title: 'Ongoing Free Computer Repair Charity Service by "Feiyang" Association, School of Software, Sichuan University',
+        speaker: '"Feiyang" Association, School of Software, Sichuan University',
+        speakerTitle: '',
+        time: '',
+        place: '"i-Chuang Street" Intelligent Science Innovation & Open-Source Hardware Offense-Defense Workshop, Jiang\'an Campus, Sichuan University',
+        description: 'The "Feiyang" Association of the School of Software, Sichuan University runs an ongoing free computer repair charity service, offering troubleshooting, system maintenance, and hardware repair to students and faculty.',
+        highlights: ['Free repair', 'Ongoing service'],
+        entry: 'Walk in and ask — no appointment needed',
+        qrText: 'Walk in and ask — no appointment needed'
       }
     }
 

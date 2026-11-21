@@ -777,6 +777,8 @@ body:hover .edge { opacity: 0.55; }
   border-top: 1px solid var(--line);
 }
 .info-item { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.info-item.time { align-self: flex-start; }
+.info-item.entry { align-self: flex-end; }
 .info-item.entry { flex: none; }
 .info-item.time { flex: none; }
 .info-item.place { flex: 1; }

@@ -129,6 +129,10 @@ intro: {
 
 `zh` / `en` 里各放这一种语言的全部文字（标签与分类在同一行；底部时间栏自动拼成「2026年11月22日14:00-17:00」）：
 
+> 右侧海报图右下角的大号数字是**活动序号**（第几个活动），中英两页显示同一个数字；底部进度条旁的页码才是当前第几页。
+
+> 长期举办、没有具体日期的活动：把 `date` 留空，时间栏就只显示 `time` 这一行（例如中文 `time: '长期举行'`、英文 `time: 'Ongoing · regular sessions'`）。
+
 ```js
 {
   date: '2025.11.22', weekday: '周六', weekdayEn: 'Sat',
@@ -140,7 +144,6 @@ intro: {
     title: '从 0 到 1：做一个会发光的小猫灯',   // **文字** 可加金色下划线
     speaker: '李思远',
     speakerTitle: 'SCU Maker 技术部部长 / 单片机爱好者',
-    speakerAvatar: '',          // 头像图片路径，留空显示姓氏首字
     time: '14:00 — 17:00',      // 与 date 合成「2026年11月22日14:00-17:00」
     place: '四川大学江安校区 · 计算机学院实验中心 B302',
     description: '……',
@@ -155,7 +158,6 @@ intro: {
     title: 'From Zero to One: Build a Glowing Cat Lamp',
     speaker: 'Li Siyuan',
     speakerTitle: 'Head of Tech, SCU Maker · Microcontroller enthusiast',
-    speakerAvatar: '',
     time: '14:00 – 17:00',
     place: 'Lab Center B302, College of Computer Science, Jiang'an Campus, SCU',
     description: '……',
@@ -181,6 +183,9 @@ intro: {
 4. **停留**：Logo 停留 10 秒后自动翻到第一张海报。
 
 时长是自动算的：`色块总时长 + 视频时长 + 黑场退去 1.5 秒 + 10 秒`（压黑与视频尾巴重叠，不额外占时间），进度条也会跟着更新，所以换一个不同长度的视频不用改任何时间配置。
+
+---
+
 ## 五、常见问题
 
 **Q：打开是白屏？**

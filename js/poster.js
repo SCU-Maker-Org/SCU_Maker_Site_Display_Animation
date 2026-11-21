@@ -48,28 +48,35 @@
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
   /**
-   * @param {object} p     config.posters 里的一项
-   * @param {number} index 在整场幻灯片里的顺序（0 起）
+   * @param {object} p     config.posters 里的一项（一个活动）
+   * @param {number} index 第几个活动（0 起，中英两页共用同一个编号）
    * @param {string} lang  'zh' | 'en'
    */
   function PosterSlide(p, index, lang) {
     var common = p || {};
     var d = Object.assign({}, common, (common[lang] || {}));
     var isEn = lang === 'en';
-    var no = pad(index + 1);
+    var no = pad(index + 1);   // 活动序号，中英双语页显示同一个数字
     var accent = d.color || '#f7bd00';
     var duration = d.duration || 9000;
     var speaker = d.speaker || '';
-    var timeFull = (d.date ? (isEn ? dateEn(d.date) + ' · ' : dateZh(d.date)) : '') + normTime(d.time);
+    // 时间栏 = 日期 + 时段 + 星期，缺哪个就跳过，不会出现多余的分隔符
+    //   长期活动：date='' 、weekday='长期'  →  只显示「长期」
+    //   单次活动：date + weekday + time    →  「2026年11月22日周日19:00-21:00」
+    var parts = [];
+    if (d.date) parts.push(isEn ? dateEn(d.date) : dateZh(d.date));
+    var wk = isEn ? (d.weekdayEn || '') : (d.weekday || '');
+    var tm = normTime(d.time);
+    if (wk && tm && (wk === tm || tm.indexOf(wk) === 0)) wk = '';   // 星期已包含在时段里就不重复
+    if (wk) parts.push(wk);
+    if (tm) parts.push(tm);
+    var timeFull = parts.join(isEn ? ' · ' : '');
 
 
     var el = document.createElement('section');
     el.className = 'slide poster-slide';
     el.style.setProperty('--accent', accent);
 
-    var avatarInner = d.speakerAvatar
-      ? '<img src="' + esc(d.speakerAvatar) + '" alt="' + esc(speaker) + '">'
-      : esc(speaker.replace(/\s/g, '').slice(0, 1) || 'M');
 
     var chips = (d.highlights && d.highlights.length)
       ? '<ul class="p-chips reveal">' + d.highlights.map(function (h) {
@@ -93,10 +100,9 @@
             '</div>' +
             '<h1 class="p-title reveal">' + rich(d.title || '') + '</h1>' +
             '<div class="p-speaker reveal">' +
-              '<div class="avatar">' + avatarInner + '</div>' +
               '<div>' +
                 '<div class="speaker-name">' + esc(speaker) + '</div>' +
-                '<div class="speaker-role">' + esc(d.speakerTitle || '') + '</div>' +
+                (d.speakerTitle ? '<div class="speaker-role">' + esc(d.speakerTitle) + '</div>' : '') +
               '</div>' +
             '</div>' +
             (d.description ? '<p class="p-desc reveal">' + esc(d.description) + '</p>' : '') +

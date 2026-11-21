@@ -58,10 +58,10 @@
     stage.appendChild(intro.el);
   }
 
-  // 每个活动生成两页：先中文、后英文
-  posters.forEach(function (p) {
+  // 每个活动生成两页：先中文、后英文（两页共用同一个活动序号）
+  posters.forEach(function (p, actIndex) {
     ['zh', 'en'].forEach(function (lang) {
-      var s = window.PosterSlide(p, deck.slides.length, lang);
+      var s = window.PosterSlide(p, actIndex, lang);
       deck.slides.push(s);
       stage.appendChild(s.el);
     });
