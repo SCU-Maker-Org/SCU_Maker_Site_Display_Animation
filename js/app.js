@@ -320,9 +320,12 @@
     if (!v) return;
     try { v.pause(); } catch (e) { }
     try {
-      v.removeAttribute('src');
-      while (v.firstChild) v.removeChild(v.firstChild);   // 也移除 <source>
-      v.load();
+      // 注意：file:// 下移除源后再 load() 会抛 "Invalid URI"（控制台红字），整段包住
+      try {
+        v.removeAttribute('src');
+        while (v.firstChild) v.removeChild(v.firstChild);   // 也移除 <source>
+        v.load();
+      } catch (e) { /* 忽略 */ }
     } catch (e) { }
   }
 

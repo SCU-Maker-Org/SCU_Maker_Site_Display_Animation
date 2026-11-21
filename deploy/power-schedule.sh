@@ -38,7 +38,6 @@ OFF_TIMER="/etc/systemd/system/maker-poweroff.timer"
 
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "请用 sudo 运行"; exit 1; }; }
 
-
 # ---------------------------------------------------------------- 安装单位 ---
 install_units() {
   local hh mm
@@ -137,6 +136,7 @@ EOF
   /usr/local/sbin/maker-rtc-alarm.sh || true
 
   echo "已安装：每天 ${hh}:${mm} 关机，${onh}:${onm} RTC 唤醒"
+  echo "验证 RTC：sudo rtcwake -m off -l -t \"\$(date -d '+10 minutes' +%s)\"   # 10 分钟后应自动开机"
 }
 
 uninstall_units() {
@@ -164,6 +164,10 @@ status_units() {
   echo "== 当前时间 =="
   date
   hwclock -r 2>/dev/null || true
+  echo
+  echo "== 板子信息 =="
+  ( . /etc/os-release 2>/dev/null; echo "系统: ${PRETTY_NAME:-未知} $(uname -m)" )
+  grep -m1 "Model" /proc/cpuinfo 2>/dev/null || true
 }
 
 case "${1:-install}" in

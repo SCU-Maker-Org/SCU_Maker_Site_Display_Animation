@@ -22,17 +22,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "请用 sudo 运行：sudo bash install.sh"; exit 1; }; }
 need_root
 
-echo "==> 1/8 安装依赖"
-if command -v dnf >/dev/null 2>&1; then
+echo "==> 1/8 安装依赖（Ubuntu/Debian 走 apt，openEuler/CentOS 走 dnf/yum）"
+if command -v apt-get >/dev/null 2>&1; then
+  # Debian / Ubuntu（含树莓派 4B Ubuntu 22.04）
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y nginx git rsync curl ca-certificates
+  systemctl enable --now nginx
+elif command -v dnf >/dev/null 2>&1; then
   dnf install -y nginx git rsync curl
   systemctl enable --now nginx
 elif command -v yum >/dev/null 2>&1; then
   yum install -y nginx git rsync curl
-  systemctl enable --now nginx
-elif command -v apt-get >/dev/null 2>&1; then
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
-  apt-get install -y nginx git rsync curl
   systemctl enable --now nginx
 else
   echo "未识别的包管理器，请手动安装：nginx git rsync curl"; exit 1
@@ -46,6 +47,8 @@ echo "==> 3/8 安装同步脚本"
 install -d -m 755 /opt/maker
 install -m 755 "$SCRIPT_DIR/sync.sh" /opt/maker/sync.sh
 install -m 755 "$SCRIPT_DIR/power-schedule.sh" /opt/maker/power-schedule.sh
+install -m 755 "$SCRIPT_DIR/local-kiosk.sh" /opt/maker/local-kiosk.sh
+install -m 755 "$SCRIPT_DIR/maker-kiosk-run.sh" /opt/maker/maker-kiosk-run.sh
 
 echo "==> 4/8 安装 nginx 站点配置"
 # 禁用发行版默认站点，避免与之冲突
@@ -62,12 +65,13 @@ case "$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}")" in
     install -m 644 "$SCRIPT_DIR/nginx-server.conf" /etc/nginx/conf.d/maker.conf
     ;;
 esac
-# SELinux 放行（openEuler 默认 enforcing，否则访问会 403/404）
+# SELinux 放行（仅 openEuler/RHEL 需要；Ubuntu 上通常没有 getenforce，直接跳过）
 if command -v getenforce >/dev/null 2>&1; then
   setsebool -P httpd_can_network_connect 1 2>/dev/null || true
-  semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null \
-    || dnf install -y policycoreutils-python-utils >/dev/null 2>&1 \
-       && semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null || true
+  if ! command -v semanage >/dev/null 2>&1 && command -v dnf >/dev/null 2>&1; then
+    dnf install -y policycoreutils-python-utils >/dev/null 2>&1 || true
+  fi
+  semanage fcontext -a -t httpd_sys_content_t "/srv/maker(/.*)?" 2>/dev/null || true
   restorecon -R /srv/maker 2>/dev/null || true
 fi
 # 目录权限（nginx 以 nginx 用户运行，需可进入并读文件）
@@ -137,4 +141,5 @@ echo "手动更新 : sudo /opt/maker/sync.sh"
 echo "退回上一版: sudo /opt/maker/sync.sh --rollback"
 echo "更新日志 : tail -f /srv/maker/logs/sync.log"
 echo "定时开关机: sudo /opt/maker/power-schedule.sh status"
+echo "本机全屏(不用 nginx): sudo /opt/maker/local-kiosk.sh install"
 echo "=========================================="

@@ -1,12 +1,20 @@
-# SCU Maker 展台 —— 香橙派 Kunpeng Pro 部署
+# SCU Maker 展台 —— 树莓派 4B / 香橙派部署
 
-本目录提供一套「**从 GitHub 定期拉取 → 自动发布 → 失败自动回滚**」的部署方案，
-适用于香橙派 Kunpeng Pro（openEuler / Ubuntu / Debian 均可）。
+本目录提供一套「**从 GitHub 定期拉取 → 自动发布 → 失败自动回滚**」的部署方案。
+
+- **当前目标机**：树莓派 4B + **Ubuntu 22.04 LTS**（见第十节）
+- 其它可用环境：香橙派 Kunpeng Pro（openEuler）、Debian / Ubuntu 通用
+
+脚本会**自动识别发行版**：有 `apt-get` 就走 apt（Ubuntu/Debian），有 `dnf/yum` 就走对应包管理器；
+SELinux 相关步骤只在检测到 `getenforce` 时才执行，Ubuntu 上会自动跳过。
 
 ```
 deploy/
-├── install.sh            一键安装（nginx + 定时更新 + 首次发布）
+├── install.sh            一键安装（nginx + 定时更新 + 首次发布；可选定时开关机）
 ├── sync.sh               拉取/发布/回滚脚本（定时器实际调用它）
+├── power-schedule.sh     22:30 关机 / 07:00 RTC 唤醒
+├── local-kiosk.sh        不用 nginx：Firefox 全屏打开本地 index.html 的启停脚本
+├── maker-kiosk-run.sh    kiosk 实际启动器（Firefox / Chromium 全屏参数与 profile）
 ├── nginx-maker.conf      nginx 完整配置（Ubuntu/Debian 用）
 └── nginx-server.conf     nginx 站点片段（openEuler/CentOS/RHEL 用）
 ```
@@ -355,3 +363,220 @@ sudo install -m 755 deploy/sync.sh /opt/maker/sync.sh
 sudo /opt/maker/sync.sh                   # 重新发布（会带上权限与 SELinux 修复）
 ls -l /srv/maker/current/
 ```
+
+---
+
+## 九、不用 nginx：Firefox 直接打开本地 index.html
+
+如果你只想在板子接显示器播放，可以**完全关掉 nginx**，让浏览器直接打开文件：
+
+```
+file:///srv/maker/current/index.html?lowfx=1
+```
+
+### 9.1 一次性 / 手动方式
+
+```bash
+# 让 sync.sh 继续把最新版本同步到 /srv/maker/current（这一步与 nginx 无关）
+sudo /opt/maker/sync.sh
+
+# 停掉并禁用 nginx
+sudo systemctl disable --now nginx
+
+# 手动用 Firefox 全屏打开
+firefox --kiosk "file:///srv/maker/current/index.html?lowfx=1"
+```
+
+> 也可以用 `sudo /opt/maker/local-kiosk.sh start` 启动（见下）。
+
+### 9.2 推荐：开机自启（kiosk 服务）
+
+```bash
+sudo bash deploy/local-kiosk.sh install     # 安装开机自启（Firefox kiosk）
+sudo bash deploy/local-kiosk.sh status      # 查看状态
+sudo bash deploy/local-kiosk.sh stop        # 停止
+sudo bash deploy/local-kiosk.sh uninstall   # 卸载
+```
+
+脚本会：
+
+1. 把 `maker-kiosk-run.sh` 与配置安装到 `/opt/maker/`；
+2. 创建专用 Firefox profile（`~/.mozilla/maker-kiosk`），写入「允许静音自动播放」「关欢迎页/遥测」等偏好；
+3. 生成 `maker-kiosk.service`，在图形界面启动后自动全屏打开
+   `file:///srv/maker/current/index.html?lowfx=1`。
+
+配置文件 `/etc/maker-kiosk.conf`：
+
+```bash
+BROWSER=firefox        # 或 chromium
+LOWFX=1                # 1 = 加 ?lowfx=1，板子上更省资源
+# KIOSK_USER=orangepi  # 默认自动探测桌面用户
+```
+
+改完执行 `sudo systemctl restart maker-kiosk`。
+
+### 9.3 nginx 与 file:// 的差别
+
+| | nginx（http://） | 直接打开（file://） |
+| --- | --- | --- |
+| 局域网其它设备访问 | ✅ 可以 | ❌ 只能本机 |
+| 视频 / 图片加载 | 正常（`video/mp4`） | 正常（Chrome 需 `--allow-file-access-from-files`，Firefox 默认可以） |
+| 缓存控制 | 可精细控制 | 由浏览器决定，更新后建议重启浏览器 |
+| 资源占用 | 多一个 nginx 进程（很小） | 少一个进程 |
+
+> 本项目的视频、图片都是**相对路径**，`file://` 下可以直接加载，无需改代码。
+> 但 `file://` 下**不要用 `fetch()` 读配置**——本项目 `config.js` 是普通 `<script>`，不受影响。
+
+### 9.4 更新后怎么生效
+
+`sync.sh` 仍然每 5 分钟把新版本发布到 `/srv/maker/current`，但浏览器已经打开旧页面：
+
+```bash
+# 方式一：重启 kiosk（推荐，几秒黑屏）
+sudo systemctl restart maker-kiosk
+
+# 方式二：每天凌晨刷新一次
+sudo crontab -e
+# 加入：
+0 4 * * * systemctl restart maker-kiosk
+```
+
+如果想做到"更新即刷新"，可以保留 nginx 方案（HTTP 下有 `no-cache` 头，刷新即拿到新内容），
+或者用 chromium 的 `--kiosk` + 定时 `xdotool key F5`。
+
+---
+
+## 十、树莓派 4B + Ubuntu 22.04 专用说明
+
+这部分针对 **Raspberry Pi 4B（ARM64）+ Ubuntu 22.04 LTS** 做了适配，与之前的 openEuler 步骤略有不同。
+
+### 10.1 系统准备（一次性）
+
+```bash
+# 1) 先确认系统版本
+lsb_release -a          # 应为 Ubuntu 22.04.x LTS
+uname -m                 # 应为 aarch64
+
+# 2) 更新并安装基础依赖（install.sh 会自动做，这里只是说明装了什么）
+sudo apt update
+sudo apt install -y nginx git rsync curl ca-certificates
+
+# 3) 时间同步（开机 RTC 闹钟与定时开关机都依赖准确时间）
+sudo timedatectl set-timezone Asia/Shanghai
+sudo timedatectl set-ntp true
+sudo apt install -y systemd-timesyncd
+sudo systemctl enable --now systemd-timesyncd
+```
+
+### 10.2 部署（和之前一样，一条命令）
+
+```bash
+git clone https://github.com/SCU-Maker-Org/SCU_Maker_Site_Display_Animation.git ~/maker-src
+sudo bash ~/maker-src/deploy/install.sh
+```
+
+Ubuntu 22 上脚本的行为：
+
+| 步骤 | Ubuntu 22 上做什么 |
+| --- | --- |
+| 依赖 | `apt-get` 安装 `nginx git rsync curl`（不再尝试 `dnf`） |
+| nginx 配置 | 写入 `/etc/nginx/sites-available/maker.conf` 并软链到 `sites-enabled`，删除默认站点 |
+| SELinux | 检测不到 `getenforce` → **自动跳过**（Ubuntu 默认 AppArmor，不影响 /srv） |
+| 防火墙 | 只有装了 `ufw` 且已启用时才 `ufw allow 80/tcp` |
+| 定时更新 | `maker-sync.timer`，每 5 分钟 |
+| 定时开关机 | 可选，见第七节 |
+
+### 10.3 树莓派 4B 上的性能建议
+
+树莓派 4B 的 GPU 与视频解码能力有限，建议：
+
+1. **用 Chromium 而不是 Firefox**（Chromium 在 Pi 上有硬件解码支持）：
+   ```bash
+   sudo apt install -y chromium-browser
+   sudo sed -i 's/^BROWSER=.*/BROWSER=chromium/' /etc/maker-kiosk.conf
+   sudo systemctl restart maker-kiosk
+   ```
+   `maker-kiosk-run.sh` 已内置 Pi 友好的参数：`--use-gl=egl`（走 V3D 驱动）、
+   `--enable-features=VaapiVideoDecoder`、`--disable-dev-shm-usage`（避免 /dev/shm 太小崩掉）。
+
+2. **必须带 `?lowfx=1`**（`local-kiosk.sh` 默认已加），关闭噪点/旋转光环等效果。
+
+3. 视频已经替换成 `assets/动画_web.mp4`（4.3MB / 每 0.5s 关键帧 / Main profile），
+   在 Pi 4 上可以流畅解码；如果仍然卡，可再降一档分辨率：
+   ```bash
+   ffmpeg -i 动画.mp4 -an -vf scale=960:-2 -c:v libx264 -profile:v main -pix_fmt yuv420p \
+          -crf 25 -x264-params "keyint=30:min-keyint=30:scenecut=0" \
+          -movflags +faststart assets/动画_web.mp4
+   ```
+
+4. 建议散热 + 固定 `gpu_mem=128`（`/boot/firmware/config.txt`），并设置 `disable_overscan=1`
+   避免边缘黑边。
+
+### 10.4 开机自动登录桌面（kiosk 必需）
+
+Ubuntu 22 默认停在登录界面，kiosk 无法开窗。设置自动登录：
+
+```bash
+# GNOME（Ubuntu Desktop 默认）
+sudo nano /etc/gdm3/custom.conf
+```
+
+取消注释并修改：
+
+```ini
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=你的用户名      # 例如 pi
+
+# 关键：不锁屏
+```
+
+再关闭锁屏与空白：
+
+```bash
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+gsettings set org.gnome.desktop.session idle-delay 0
+```
+
+装好后执行：
+
+```bash
+sudo bash ~/maker-src/deploy/local-kiosk.sh install   # 开机全屏打开 file://.../index.html?lowfx=1
+```
+
+### 10.5 树莓派的定时关机 / 开机
+
+- **关机**：`power-schedule.sh` 的 `maker-poweroff.timer` 在 Ubuntu 22 上同样有效。
+- **开机（RTC 唤醒）**：树莓派 4B 的板载 RTC 需要在 `/boot/firmware/config.txt` 中开启：
+
+  ```ini
+  # 树莓派 4B 的 RTC（可在 CONFIG 里启用）
+  dtparam=rtc=on
+  ```
+
+  然后：
+
+  ```bash
+  echo "rtc-ds1307 0x51" | sudo tee /etc/modules-load.d/rtc.conf
+  sudo reboot
+  ls /dev/rtc*                       # 应出现 /dev/rtc0
+  cat /sys/class/rtc/rtc0/wakealarm  # 应可读写
+  sudo /opt/maker/power-schedule.sh test
+  ```
+
+  > 注意：树莓派 4B **没有备用电池**时，断电后 RTC 会归零；但 `poweroff` 后主板仍保持待机供电，
+  > RTC 闹钟可以正常触发唤醒。若必须断电存放，需要给 RTC 外接 CR2032。
+
+- 验证：
+
+  ```bash
+  sudo rtcwake -m off -l -t "$(date -d '+10 minutes' +%s)"   # 10 分钟后应自动开机
+  ```
+
+### 10.6 已弃用的 openEuler 专属步骤
+
+如果你从香橙派（openEuler）迁过来，以下内容**在 Ubuntu 上不会再执行**，无需处理：
+
+- `dnf / yum` 安装分支（脚本会优先走 `apt-get`）
+- `setsebool / semanage / restorecon`（检测不到 SELinux 自动跳过）
+- `firewall-cmd`（Ubuntu 用 `ufw`，脚本也会自动识别）

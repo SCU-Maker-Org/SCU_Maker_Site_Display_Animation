@@ -116,6 +116,7 @@ publish() {
   # 原子切换 current（先 chmod，再切链接，避免 nginx 短暂读不到）
   chmod 755 /srv 2>/dev/null || true
   chmod -R a+rX "$rel"
+  # SELinux 只在启用时处理（Ubuntu 默认没有，自动跳过）
   if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" != "Disabled" ]; then
     restorecon -R "$rel" 2>/dev/null || true
   fi

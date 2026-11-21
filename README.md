@@ -57,7 +57,7 @@ js/app.js                   播放控制：横移、循环、进度、快捷键
 动画.mp4                    原始动画视频（1280×720，源码保留）
 assets/动画_web.mp4         网页用视频（H.264 Main / 每 0.5 秒关键帧 / 无音轨，约 4.3MB）
 assets/动画_poster.jpg       视频封面（Firefox 等加载慢时先显示它）
-deploy/                     香橙派部署脚本（定时拉取 / nginx / 22:30关机·07:00开机，见 deploy/README.md）
+deploy/                     香橙派部署脚本（定时拉取 / nginx 或 本地 file:// 全屏 / 定时开关机，见 deploy/README.md）
 assets/、tools/             （上一版分层猫动画的素材，当前未使用，可删）
 敲钉子的猫.png / 哈气的猫.png  原始插画（素材备份）
 SCU Maker's Logo.png        协会 Logo（透明底 PNG）
