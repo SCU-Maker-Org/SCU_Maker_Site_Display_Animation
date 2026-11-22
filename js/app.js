@@ -4,6 +4,28 @@
 (function () {
   'use strict';
 
+  /* ---------------------------------------------- 时间模拟（?now=…，仅调试用） --
+   *  index.html?now=2026-11-22T19:30  把“当前时间”固定成这个时刻，
+   *  用来验证活动是否会在正确的时间段自动变成「正在进行中」。 */
+  (function mockNow() {
+    var v = new URLSearchParams(location.search).get('now');
+    if (!v) return;
+    var RealDate = Date;
+    var fixed = new RealDate(v).getTime();
+    if (isNaN(fixed)) return;
+    window.__NOW__ = new RealDate(fixed);
+    function FakeDate() {
+      if (arguments.length === 0) return new RealDate(fixed);
+      var args = Array.prototype.slice.call(arguments);
+      return new (Function.prototype.bind.apply(RealDate, [null].concat(args)))();
+    }
+    FakeDate.prototype = RealDate.prototype;
+    FakeDate.now = function () { return fixed; };
+    FakeDate.parse = RealDate.parse;
+    FakeDate.UTC = RealDate.UTC;
+    window.Date = FakeDate;
+  })();
+
   var C = window.CONFIG || {};
   var settings = C.settings || {};
   var posters = C.posters || [];
@@ -166,6 +188,9 @@
     var from = deck.slides[deck.index];
     var to = deck.slides[next];
 
+    // 离开「正在进行中」的活动页 → 关掉该页额外的大面积动画（呼吸光晕等）
+    if (from && from !== to && from.ongoing) document.body.classList.remove('ongoing-mode');
+
     if (from && from.el) {
       from.el.classList.remove('active');
       from.el.classList.add('past');
@@ -199,6 +224,7 @@
 
     if (curNoEl) curNoEl.textContent = String(deck.index + 1).padStart(2, '0');
     if (nowTitleEl) nowTitleEl.textContent = to.title || '';
+    syncOngoingMode();
 
     schedule(to.duration || 9000);
     deck.started = true;
@@ -210,6 +236,29 @@
     if (s.start) s.start();
     schedule(s.duration || 9000);
   }
+
+  // 进行中活动页的呼吸特效只在“当前页且未暂停”时运行
+  function syncOngoingMode() {
+    var s = deck.slides[deck.index];
+    document.body.classList.toggle('ongoing-mode', !!(s && s.ongoing) && !deck.paused);
+  }
+
+  /* --------------------------------------------------------- 自动判定「进行中」 --
+   * 进行中状态是按活动时间自动算出来的；展台可能连续开机好几天，
+   * 所以要定期重算：跨过活动开始 / 结束的时刻后，徽标与特效会自动出现或消失。 */
+  function refreshOngoing() {
+    var changed = false;
+    deck.slides.forEach(function (s) {
+      if (!s.activity || typeof s.refreshOngoing !== 'function') return;
+      var now = s.refreshOngoing();
+      if (now !== s.ongoing) { s.ongoing = now; changed = true; }
+    });
+    if (changed) syncOngoingMode();
+  }
+  setInterval(refreshOngoing, 30000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) refreshOngoing();
+  });
 
   function setPaused(p) {
     if (deck.paused === p) return;
@@ -227,6 +276,7 @@
       if (s && s.resume) s.resume();
       schedule(deck.remaining || (s && s.duration) || 9000);
     }
+    syncOngoingMode();
   }
 
   function toggleFullscreen() {
@@ -356,6 +406,7 @@
     Array.prototype.forEach.call(dotsEl.children, function (d, i) {
       d.classList.toggle('active', i === deck.index);
     });
+    syncOngoingMode();
   } else {
     go(0, { force: true });
   }
@@ -368,6 +419,7 @@
     document.body.classList.add('paused');
     var s0 = deck.slides[deck.index];
     if (s0 && s0.pause) s0.pause();
+    syncOngoingMode();
   } else if (settings.fullscreenOnStart) {
     setTimeout(toggleFullscreen, 400);
   }

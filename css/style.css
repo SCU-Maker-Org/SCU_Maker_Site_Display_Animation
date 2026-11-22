@@ -493,6 +493,7 @@ body:hover .edge { opacity: 0.55; }
   color: transparent;
   -webkit-text-stroke: 1px rgba(70, 103, 173, 0.18);
   pointer-events: none;
+  z-index: 1;
 }
 .poster::after {
   content: "";
@@ -500,6 +501,7 @@ body:hover .edge { opacity: 0.55; }
   left: 0; right: 0; top: 0;
   height: 3px;
   background: linear-gradient(90deg, var(--accent), rgba(70, 103, 173, 0.25) 55%, transparent);
+  z-index: 2;
 }
 
 .poster-grid {
@@ -661,13 +663,7 @@ body:hover .edge { opacity: 0.55; }
   box-shadow: 0 26px 60px rgba(46, 74, 134, 0.22), inset 0 0 0 1px rgba(70, 103, 173, 0.16);
   isolation: isolate;
 }
-.p-visual > img.photo {
-  position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  z-index: 2;
-}
+/* 有活动海报图时，底色渐变不需要（图片本身铺满） */
 .p-visual .grid-deco {
   position: absolute;
   inset: 0;
@@ -978,31 +974,492 @@ body.lowfx .cut-bg .ghost { opacity: 0.03; }
   .intro-slide.after .logo-final::after { display: none; }
 }
 /* ==========================================================================
-   海报主视觉：两种放图方式
-   1) 默认（活动实拍照片）  object-fit: cover 铺满，会裁切
-   2) .logo-image 模式（协会标志 / 报名海报） object-fit: contain 完整显示不裁切
-      config.js 里把该活动的 image 指向标志图，并在 style.css 里加 class 即可，
-      这里默认对带有 data-logo="1" 的视觉区生效。
+   海报主视觉（.p-visual）：这是「放活动海报图片」的那一格
+   ----------------------------------------------------------------------------
+   · 有图（config 里配了 image）：这张图就是完整海报，铺满整格，
+     原本的模拟背景（网格 / 圆弧 / Logo 淡影 / SCU MAKER 角标 / 编号）
+     全部不渲染，不会出现“图盖在模拟图上”的叠层。
+   · 无图：显示默认模拟图「模拟图片.png」（settings.posterPlaceholder 可改）。
    ========================================================================== */
 
-/* 已经是“白底/米白底”的成品图：铺满整个视觉区，不再加 padding */
-.p-visual[data-logo="1"] > img.photo {
+/* 有图时：去掉底色渐变，只保留圆角与裁切 */
+.p-visual.has-poster {
+  background: #fff;
+}
+
+/* 铺满整格的活动海报图片 */
+.p-visual > img.poster-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;      /* 裁切铺满（活动实拍照片用） */
+  object-position: center;
+  z-index: 2;
+  display: block;
+}
+
+/* 协会标志 / 报名海报这类“不能裁”的图：完整显示，四周留白由图片自己提供 */
+.p-visual.is-logo > img.poster-img {
   object-fit: contain;
   padding: 0;
-  z-index: 3;
 }
 
-/* 透明底 PNG / 需要留白的标志：额外加 padding（config 里写 imagePad: true） */
-.p-visual[data-logo="pad"] > img.photo {
-  object-fit: contain;
+/* 默认模拟图本身就是 618×540 的成品，直接铺满 */
+.p-visual > img.poster-img.is-placeholder {
+  object-fit: cover;
+}
+
+/* 透明底 PNG 需要额外留白时，在 config 里写 imagePad: true */
+.p-visual.is-logo.pad > img.poster-img {
   padding: 9% 8%;
-  z-index: 3;
 }
 
-/* 标志类图片时，淡化背景装饰，让标志成为主角 */
-.p-visual[data-logo="1"] .grid-deco { opacity: 0.45; }
-.p-visual[data-logo="1"] .mark { opacity: 0.05; }
-.p-visual[data-logo="1"] .arc { opacity: 0.5; }
+/* ==========================================================================
+   正在进行中的活动
+   ----------------------------------------------------------------------------
+   「是否进行中」由 js/poster.js 的 isOngoingNow() 按 date + time 自动判定，
+   不再需要手写 ongoing: true。判定结果只体现为 .poster 上的 .is-ongoing 类：
+     · 下面这些特效元素节点常驻 DOM，默认隐藏；
+     · 只有 .poster.is-ongoing 时才显示并开始动画 → 运行中跨过活动开始 / 结束
+       时刻，JS 只需要切换一个类，徽标与特效就会自动出现 / 消失。
+   只为「当前这一页」播放动画：离开该页后 JS 会去掉 body.ongoing-mode，
+   呼吸光晕、脉冲等会一起停下，循环播放时不额外占用 GPU（树莓派上也稳）。
+   特效清单：
+     1) 左上角实时徽标「● 正在进行中 / NOW ON」——扩散光环 + 旋转雷达
+     2) 顶部波浪形光带
+     3) 整页极淡的氛围呼吸光，从边缘向中心缓慢明暗
+     4) 右侧海报区：外发光 + 4 个呼吸定位角 + 光束扫过海报
+     5) 画面正中的黄色俯视波浪（3 圈波纹向外扩散）
+     6) 底部时间栏换成实时图标 + 脉冲圆点
+   低配模式（body.lowfx）只保留静止的发光与旋转圆点，不做大面积动画。
+   ========================================================================== */
 
-/* 数字角标在标志图上会更清晰 */
-.p-visual[data-logo="1"] > .hint { display: none; }
+/* ---------- 默认隐藏：只有进行中的海报才显示这些特效 ---------- */
+.poster:not(.is-ongoing) .p-live,
+.poster:not(.is-ongoing) .p-live-waves,
+.poster:not(.is-ongoing) .p-live-stream,
+.poster:not(.is-ongoing) .live-word,
+.poster:not(.is-ongoing) .ic-live,
+.poster:not(.is-ongoing) .info-item.time small {
+  display: none;
+}
+.poster.is-ongoing .ic-clock,
+.poster.is-ongoing .plain-time {
+  display: none;
+}
+
+/* ---------- 1) 实时徽标 ---------- */
+.poster .p-live {
+  --live: var(--accent);
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px 7px 13px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--live) 60%, #0b1230);
+  background: linear-gradient(130deg, color-mix(in srgb, var(--live) 26%, #fff), color-mix(in srgb, var(--live) 12%, #fff));
+  border: 1px solid color-mix(in srgb, var(--live) 52%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--live) 24%, transparent);
+  animation: liveGlow 2.4s ease-in-out infinite;
+}
+.poster .p-live::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1.6px solid var(--live);
+  opacity: 0;
+  animation: liveRing 2.4s var(--ease) infinite;
+  pointer-events: none;
+}
+.poster.lang-en .p-live { font-family: var(--font-en); letter-spacing: 0.2em; padding-right: 15px; }
+.p-live-dot {
+  flex: none;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 65%, transparent);
+  animation: liveDot 1.5s ease-out infinite;
+}
+.p-live-ic { display: inline-grid; place-items: center; }
+.p-live-ic svg {
+  width: 16px; height: 16px;
+  transform-origin: 50% 50%;
+  animation: liveIco 2.4s ease-in-out infinite;
+}
+@keyframes liveGlow {
+  0%, 100% { box-shadow: 0 8px 22px color-mix(in srgb, var(--live) 20%, transparent); }
+  50%      { box-shadow: 0 10px 30px color-mix(in srgb, var(--live) 48%, transparent); }
+}
+@keyframes liveRing {
+  0%        { transform: scale(1);    opacity: 0.55; }
+  55%, 100% { transform: scale(1.09); opacity: 0; }
+}
+@keyframes liveDot {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 9px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes liveIco {
+  0%, 100% { opacity: 0.65; transform: scale(0.94); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+/* ---------- 2) 顶部流光线（替换原来的静态渐变） ---------- */
+.poster.is-ongoing::after {
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 30%, transparent) 55%,
+    transparent 100%);
+}
+.p-live-stream {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 3px;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: none;
+}
+.p-live-stream::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.9) 42%,
+    var(--accent) 58%,
+    transparent 100%);
+  filter: drop-shadow(0 0 6px var(--accent));
+  animation: liveStream 3.6s linear infinite;
+}
+@keyframes liveStream {
+  from { transform: translateX(0); }
+  to   { transform: translateX(390%); }
+}
+
+/* ---------- 3) 整页氛围呼吸光（只在当前页开启） ---------- */
+.poster.is-ongoing .poster-grid {
+  z-index: 2;
+}
+.poster.is-ongoing .p-live-stream {
+  z-index: 7;
+}
+.poster.is-ongoing .p-info {
+  z-index: 3;
+}
+.poster.is-ongoing .p-visual {
+  z-index: 3;
+}
+.poster.is-ongoing .p-tagrow,
+.poster.is-ongoing .p-title,
+.poster.is-ongoing .p-speaker,
+.poster.is-ongoing .p-desc,
+.poster.is-ongoing .p-chips {
+  position: relative;
+  z-index: 4;
+}
+body.ongoing-mode .poster-slide .poster::before {
+  animation: liveNoStroke 4.8s ease-in-out infinite;
+}
+@keyframes liveNoStroke {
+  0%, 100% { -webkit-text-stroke: 1px rgba(70, 103, 173, 0.14); }
+  50%      { -webkit-text-stroke: 1px color-mix(in srgb, var(--accent) 55%, rgba(70, 103, 173, 0.2)); }
+}
+body.ongoing-mode .poster-slide .poster {
+  box-shadow: inset 0 0 120px -40px color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: liveAmbient 5.2s ease-in-out infinite;
+}
+@keyframes liveAmbient {
+  0%, 100% { background-color: rgba(0, 0, 0, 0); }
+  50%      { background-color: color-mix(in srgb, var(--accent) 7%, transparent); }
+}
+
+/* ---------- 4) 右侧海报区：外发光 + 呼吸定位角 + 光束扫过 ---------- */
+.poster.is-ongoing .p-visual {
+  animation: liveFrame 3.4s ease-in-out infinite;
+}
+.poster.is-ongoing .p-visual::before,
+.poster.is-ongoing .p-visual::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  width: clamp(26px, 3vw, 44px);
+  height: clamp(26px, 3vw, 44px);
+  border: 2.5px solid var(--accent);
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0.9;
+  animation: liveCorner 2.6s ease-in-out infinite;
+}
+/* 四角定位角：伪元素各画两角，再加两个静态角 */
+.poster.is-ongoing .p-visual::before {
+  left: 14px; top: 14px;
+  border-right: 0; border-bottom: 0;
+}
+.poster.is-ongoing .p-visual::after {
+  right: 14px; bottom: 14px;
+  border-left: 0; border-top: 0;
+  animation-delay: 1.3s;
+}
+.poster.is-ongoing .p-visual .grid-deco::before,
+.poster.is-ongoing .p-visual .grid-deco::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  width: clamp(26px, 3vw, 44px);
+  height: clamp(26px, 3vw, 44px);
+  border: 2.5px solid var(--accent);
+  border-radius: 3px;
+  opacity: 0.9;
+  animation: liveCorner 2.6s ease-in-out infinite;
+  animation-delay: 0.65s;
+}
+.poster.is-ongoing .p-visual .grid-deco::before {
+  right: 14px; top: 14px;
+  border-left: 0; border-bottom: 0;
+}
+.poster.is-ongoing .p-visual .grid-deco::after {
+  left: 14px; bottom: 14px;
+  border-right: 0; border-top: 0;
+  animation-delay: 1.95s;
+}
+/* 光束：一条斜向高光从海报上缓慢扫过 */
+.poster.is-ongoing .p-visual > .arc.a1::after {
+  content: "";
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(255, 255, 255, 0.9) 51%,
+    rgba(255, 255, 255, 0) 62%);
+  mix-blend-mode: screen;
+  transform: translateX(-60%);
+  animation: liveSheen 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes liveFrame {
+  0%, 100% { box-shadow: 0 26px 60px rgba(46, 74, 134, 0.22), inset 0 0 0 1px rgba(70, 103, 173, 0.16), 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50%      { box-shadow: 0 30px 70px rgba(46, 74, 134, 0.26), inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 46px 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+@keyframes liveCorner {
+  0%, 100% { opacity: 0.35; transform: scale(0.94); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+@keyframes liveSheen {
+  0%       { transform: translateX(-62%); opacity: 0; }
+  18%      { opacity: 1; }
+  62%, 100% { transform: translateX(62%); opacity: 0; }
+}
+
+/* ---------- 5) 活动序号：同心扩散环 ---------- */
+.poster.is-ongoing .p-visual .vno {
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.poster.is-ongoing .p-visual .vno::before,
+.poster.is-ongoing .p-visual .vno::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 1.15em; height: 1.15em;
+  margin: -0.575em 0 0 -0.575em;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  opacity: 0;
+  animation: livePulse 2.8s var(--ease) infinite;
+  pointer-events: none;
+}
+.poster.is-ongoing .p-visual .vno::after { animation-delay: 1.4s; }
+@keyframes livePulse {
+  0%        { transform: scale(0.35); opacity: 0; }
+  18%       { opacity: 0.75; }
+  100%      { transform: scale(1.25); opacity: 0; }
+}
+
+/* ---------- 6) 底部时间栏：实时图标 + 脉冲文字 ---------- */
+.poster.is-ongoing .info-item.time .info-icon {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, #fff);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: liveGlow 2.4s ease-in-out infinite;
+}
+.poster.is-ongoing .info-item.time .info-icon svg {
+  animation: liveIco 2.4s ease-in-out infinite;
+}
+.live-word {
+  font-weight: 800;
+  color: color-mix(in srgb, var(--accent) 30%, #b1281c);
+  letter-spacing: 0.08em;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--accent) 45%, #b1281c) 0%,
+    color-mix(in srgb, var(--accent) 20%, #b1281c) 40%,
+    color-mix(in srgb, var(--accent) 45%, #b1281c) 60%,
+    color-mix(in srgb, var(--accent) 45%, #b1281c) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: liveShine 3.2s linear infinite;
+}
+.live-word::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em; height: 0.5em;
+  margin-right: 0.45em;
+  margin-bottom: 0.05em;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--accent);
+  -webkit-text-fill-color: initial;
+  animation: liveDot 1.5s ease-out infinite;
+}
+@keyframes liveShine {
+  from { background-position: 120% 0; }
+  to   { background-position: -100% 0; }
+}
+
+/* ---------- 7) 黄色俯视波浪：画面正中央一个波源，3 圈波纹缓慢向外荡开 ----------
+   俯视（bird's-eye）看水面的做法：
+     · 整页一层容器，正中一个波源；波源处放 3 圈同心波纹（.ripple i）
+     · 每圈波纹从波源处很小、很淡开始，一边向外放大一边变亮，最后淡出
+     · 3 圈相位均匀错开（各差 1/3 周期）→ 水波一圈接一圈从中心往外扩散
+     · 波纹厚实：用“宽环 + 内暗外亮”的径向渐变做出有厚度的黄色波带
+     · ★ 这一层在 .poster 底层的背景里（不在文字上面），所有文字都盖在波浪之上 */
+.p-live-waves {
+  position: absolute;
+  inset: 0;                   /* 整页：从顶栏到画面底边 */
+  z-index: 0;                 /* ★ 只在背景层：低于网格 / 正文 / 海报图 / 信息栏 */
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 波源：画面正中央的一个点，波纹从这里一圈圈荡出去 */
+.ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  /* 半径最大到 150vmax，任何宽高比都能铺满整屏 */
+  --size: min(300vmax, 3000px);
+  /* 一圈波从中心荡到出屏要 22 秒（越慢越舒缓） */
+  --dur: 22s;
+  /* 波峰正片：更宽的黄色波带，内暗 → 峰亮 → 外柔化淡出 */
+  --wave-band: radial-gradient(circle closest-side,
+      transparent 0 18%,
+      color-mix(in srgb, var(--accent) 5%, transparent) 24%,
+      color-mix(in srgb, var(--accent) 28%, transparent) 34%,
+      color-mix(in srgb, var(--accent) 34%, transparent) 46%,
+      color-mix(in srgb, var(--accent) 18%, transparent) 56%,
+      transparent 64%);
+}
+/* 每一圈波纹 */
+.ripple i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--size);
+  height: var(--size);
+  margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
+  border-radius: 50%;
+  background: var(--wave-band);
+  opacity: 0;
+  /* 从中心推出 → 放大 → 淡出，循环（linear 让外圈速度匀实，不会忽快忽慢） */
+  animation: rippleOut var(--dur) linear infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform, opacity;
+}
+@keyframes rippleOut {
+  0%   { transform: scale(0.05); opacity: 0; }
+  8%   { opacity: 1; }
+  85%  { opacity: 0.7; }
+  100% { transform: scale(1);    opacity: 0; }
+}
+/* 3 圈波纹：相位均匀错开 1/3 周期，波源处始终有波在荡 */
+.ripple i:nth-child(1) { --delay: 0s; }
+.ripple i:nth-child(2) { --delay: calc(var(--dur) * -0.3333); }
+.ripple i:nth-child(3) { --delay: calc(var(--dur) * -0.6667); }
+
+/* ---------- 低配模式：定格成静止的波纹 ---------- */
+body.lowfx .ripple i,
+body.lowfx .ripple i:nth-child(n) {
+  animation: none;
+  opacity: 0.45;
+  transform: scale(1);
+}
+
+/* 顶部光带同步改成“波浪形” */
+.poster.is-ongoing .p-live-stream {
+  height: 6px;
+}
+.poster.is-ongoing .p-live-stream::before {
+  top: 0;
+  height: 100%;
+  animation: liveStream 3.6s linear infinite, waveRipple 2.2s ease-in-out infinite alternate;
+}
+@keyframes waveRipple {
+  from { clip-path: polygon(0 0, 100% 0, 100% 60%, 74% 100%, 62% 42%, 50% 100%, 38% 42%, 26% 100%, 14% 42%, 0 100%); }
+  to   { clip-path: polygon(0 0, 100% 0, 100% 100%, 74% 42%, 62% 100%, 50% 42%, 38% 100%, 26% 42%, 14% 100%, 0 42%); }
+}
+
+/* ---------- 低配模式 / 减少动态效果：保留静止发光，关掉大面积动画 ---------- */
+body.lowfx .poster.is-ongoing .p-live-stream::before,
+body.lowfx .poster.is-ongoing .p-visual > .arc.a1::after,
+body.lowfx .poster.is-ongoing .p-visual .vno::before,
+body.lowfx .poster.is-ongoing .p-visual .vno::after,
+body.lowfx .poster.is-ongoing .p-visual .grid-deco::before,
+body.lowfx .poster.is-ongoing .p-visual .grid-deco::after,
+body.lowfx .poster.is-ongoing .p-visual::before,
+body.lowfx .poster.is-ongoing .p-visual::after,
+body.lowfx .poster.is-ongoing .p-live::before {
+  display: none;
+}
+body.lowfx .poster.is-ongoing .p-visual,
+body.lowfx .poster.is-ongoing .p-live,
+body.lowfx .poster.is-ongoing .info-item.time .info-icon,
+body.lowfx .poster-slide .poster::before,
+body.lowfx .live-word {
+  animation: none;
+}
+body.lowfx.ongoing-mode .poster-slide .poster {
+  box-shadow: none;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster.is-ongoing .p-live-stream::before,
+  .poster.is-ongoing .p-visual > .arc.a1::after,
+  .poster.is-ongoing .p-visual::before,
+  .poster.is-ongoing .p-visual::after,
+  .poster.is-ongoing .p-visual .grid-deco::before,
+  .poster.is-ongoing .p-visual .grid-deco::after,
+  .poster.is-ongoing .p-visual .vno::before,
+  .poster.is-ongoing .p-visual .vno::after {
+    display: none;
+  }
+  .poster.is-ongoing .p-visual,
+  .poster.is-ongoing .p-live,
+  .poster.is-ongoing .p-live::before,
+  .poster.is-ongoing .info-item.time .info-icon,
+  body.ongoing-mode .poster-slide .poster {
+    animation: none;
+  }
+  .ripple i,
+  .ripple i:nth-child(n) {
+    animation: none;
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}

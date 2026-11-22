@@ -19,6 +19,7 @@ window.CONFIG = {
 
     logoImage: "SCU Maker's Logo.png",   // 协会 Logo（与 index.html 同目录）
     emblemImage: '校徽+院徽（高清+抠图版）.png',  // 左上角排在前面的校徽 + 院徽
+    posterPlaceholder: '模拟图片.png',   // 活动没配 image 时，右侧海报格显示的默认模拟图
     brandBlue: '#4667ad',         // 院徽主蓝
     brandGold: '#f7bd00',         // 院徽金
   },
@@ -67,6 +68,11 @@ window.CONFIG = {
    * ------------------------------------------------------------------------
    *  公共字段（两种语言共用）：
    *      date / weekday / weekdayEn / color / duration / image / qr
+   *  「是否正在进行中」全自动判定，不用手写标记：
+   *      · 活动日期当天，且在 time 时段内 → 自动显示进行中徽标 + 俯视波浪特效
+   *      · 只有日期没写时段 → 当天 0:00–24:00 都算进行中
+   *      · date 留空的长期活动 → 永远不算进行中
+   *      · 需要临时强制时，再写 ongoing: true / false 覆盖自动判定
    *  zh / en 里各自放这一种语言的全部文字：
    *      tag（左上角标签）, category（同行小字）, title,
    *      speaker, speakerTitle, time, place, description,
@@ -82,6 +88,7 @@ window.CONFIG = {
       date: '',
       weekday: '长期',
       weekdayEn: 'Ongoing service',
+      // 长期活动（没有具体档期）：不加 ongoing，保持普通海报外观
       color: '#7aa8e8',
       duration: 10000,
       image: '',
@@ -96,7 +103,12 @@ window.CONFIG = {
         time: '',
         place: '“i创街”智能科学创新与开源硬件工坊 & 二基楼B101',
         description: '',
-        highlights: ['物料提供', '教师指导', '竞赛', '长期开展'],
+        highlights: [
+          '物料提供', '教师指导', '竞赛', '长期开展',
+          '无人机', '智能车', '船模',
+          'ESP32', 'Arduino', '树莓派', '香橙派',
+          'DIY', '焊接', '3D打印'
+        ],
         entry: '向全体四川大学师生开放',
         qrText: '向全体四川大学师生开放'
       },
@@ -110,7 +122,12 @@ window.CONFIG = {
         time: '',
         place: '',
         description: '',
-        highlights: ['Materials Provided', 'Teacher Guidance', 'Competitions', 'Long-term Operation'],
+        highlights: [
+          'Materials Provided', 'Teacher Guidance', 'Competitions', 'Long-term Operation',
+          'Drones', 'Smart Cars', 'Model Boats',
+          'ESP32', 'Arduino', 'Raspberry Pi', 'Orange Pi',
+          'DIY', 'Soldering', '3D Printing'
+        ],
         entry: 'Open to all faculty and students of Sichuan University',
         qrText: 'Open to all faculty and students of Sichuan University'
       }
@@ -119,6 +136,9 @@ window.CONFIG = {
       date: '2026.11.22',
       weekday: '周日',
       weekdayEn: 'Sun',
+      // 【自动判定】是否「正在进行中」由 date + time 自动算，不用写 ongoing: true。
+      //   时段内（2026-11-22 19:00–21:00）自动显示进行中徽标与波浪特效，
+      //   开始前 / 结束后自动隐藏。需要临时强制时再写 ongoing: true / false。
       color: '#7aa8e8',
       duration: 10000,
       image: '',
@@ -159,11 +179,11 @@ window.CONFIG = {
       weekdayEn: 'Ongoing service',
       color: '#7aa8e8',
       duration: 10000,
-      // 海报主视觉：白底版（原图是抠图 PNG，直接放会有透明背景，这里用合成好的白底 JPG）
+      // 海报主视觉：这一格放的就是“活动海报图片”，会铺满整格并替代原来的模拟背景
+      //   imageLogo: true → 完整显示不裁切（协会标志 / 报名海报这类不能裁的图）
+      //                   活动实拍照片请删掉这一行，会按 cover 裁切铺满
       image: 'assets/飞扬_logo_white_bg.jpg',
-      imageLogo: true,          // 标志类图片：完整显示不裁切（换成活动照片时删掉这行）
-      // 其它可选：'assets/飞扬_logo_paper_bg.jpg'（米白底，和页面更融合）
-      //           'assets/飞扬_logo.png'（原透明底 PNG）
+      imageLogo: true,
       qr: '',
 
       zh: {
